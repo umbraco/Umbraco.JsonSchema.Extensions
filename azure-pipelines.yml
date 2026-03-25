@@ -5,6 +5,10 @@ parameters:
     displayName: Cache NuGet packages
     type: boolean
     default: true
+  - name: skip_sbom
+    displayName: Skip SBOM generation
+    type: boolean
+    default: false
 
 variables:
   solution: Umbraco.JsonSchema.Extensions.sln
@@ -50,6 +54,11 @@ stages:
           # Build
           - script: dotnet build $(solution) --configuration $(buildConfiguration) --no-restore -p:ContinuousIntegrationBuild=true
             displayName: Run dotnet build
+
+          # Set major version for dependent stages
+          - script: echo "##vso[task.setvariable variable=majorVersion;isOutput=true]$(NBGV_VersionMajor)"
+            displayName: Set majorVersion output variable
+            name: nbgv
 
           # Pack
           - script: dotnet pack $(solution) --configuration $(buildConfiguration) --no-build --output $(Build.ArtifactStagingDirectory)/nupkg
@@ -110,3 +119,29 @@ stages:
               searchFolder: $(Build.ArtifactStagingDirectory)/tests
               testRunTitle: Unit Tests - $(Agent.OS)
               configuration: $(buildConfiguration)
+
+  # Generate SBOM on development branch
+  - stage: GenerateSBOM
+    displayName: Generate SBOM
+    dependsOn: Build
+    condition: |
+      and(
+        succeeded('Build'),
+        eq(variables['Build.SourceBranch'], 'refs/heads/develop'),
+        ne('${{ parameters.skip_sbom }}', true)
+      )
+    variables:
+      majorVersion: $[ stageDependencies.Build.Build.outputs['nbgv.majorVersion'] ]
+    jobs:
+      - job: GenerateSBOM
+        displayName: Generate SBOM
+        pool:
+          vmImage: 'ubuntu-latest'
+        steps:
+          - template: generate-sbom.yml
+            parameters:
+              productGroup: 'Umbraco'
+              productName: 'Umbraco.JsonSchema.Extensions'
+              baseUrl: $(DT_BASE_URL)
+              apiKey: $(DT_API_KEY)
+              majorVersion: $(majorVersion)
