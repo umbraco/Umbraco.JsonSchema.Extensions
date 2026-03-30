@@ -1,17 +1,17 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <TargetFramework>netstandard2.0</TargetFramework>
+    <TargetFramework /><!-- Clear the Directory.Build.props default to enable multi-targeting -->
+    <TargetFrameworks>net472;net8.0</TargetFrameworks>
     <Title>Umbraco JSON schema extensions</Title>
     <Description>Extensions for Umbraco to add JSON schema references and update JSON properties using MSBuild tasks.</Description>
   </PropertyGroup>
-  
+
   <ItemGroup>
     <PackageReference Include="Microsoft.Build.Utilities.Core" PrivateAssets="all" ExcludeAssets="runtime" />
-    <PackageReference Include="Newtonsoft.Json" PrivateAssets="all" GeneratePathProperty="true" />
+    <PackageReference Include="System.Text.Json" PrivateAssets="all" Condition="'$(TargetFramework)' == 'net472'" />
   </ItemGroup>
 
   <ItemGroup>
-    <None Include="$(PkgNewtonsoft_Json)\lib\netstandard2.0\*.dll" Pack="true" PackagePath="$(BuildOutputTargetFolder)\$(TargetFramework)" Visible="false" />
     <None Include="build\**" Pack="true" PackagePath="build" />
   </ItemGroup>
 

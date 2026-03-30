@@ -1,11 +1,11 @@
 using System;
+using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
 using System.Linq;
-using System.Text;
+using System.Text.Json;
+using System.Text.Json.Nodes;
 using Microsoft.Build.Framework;
-using Newtonsoft.Json;
-using Newtonsoft.Json.Linq;
 
 namespace Umbraco.JsonSchema.Extensions
 {
@@ -42,61 +42,94 @@ namespace Umbraco.JsonSchema.Extensions
                 return true;
             }
 
-            using (FileStream fs = File.Open(JsonSchemaFile, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None))
+            using FileStream fs = File.Open(JsonSchemaFile, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None);
+            JsonObject schema;
+            if (fs.Length == 0)
             {
-                JObject schema;
-                if (fs.Length == 0)
+                // Create new schema
+                schema = new JsonObject
                 {
-                    // Create new schema
-                    schema = new JObject()
-                    {
-                        { "$schema", "http://json-schema.org/draft-04/schema#" }
-                    };
-                }
-                else
+                    ["$schema"] = "http://json-schema.org/draft-04/schema#"
+                };
+            }
+            else
+            {
+                // Read existing schema file
+                schema = (JsonObject)JsonNode.Parse(fs, documentOptions: new JsonDocumentOptions
                 {
-                    // Read existing schema file
-                    using (var sr = new StreamReader(fs, Encoding.UTF8, true, 1024, leaveOpen: true))
-                    using (var reader = new JsonTextReader(sr))
-                    {
-                        schema = (JObject)JToken.ReadFrom(reader);
-                    }
+                    CommentHandling = JsonCommentHandling.Skip,
+                    AllowTrailingCommas = true
+                })!;
 
-                    // Truncate file
-                    fs.SetLength(0);
-                }
+                // Truncate file
+                fs.SetLength(0);
+                fs.Position = 0;
+            }
 
-                // Merge schema with references
-                schema.Merge(CreateReferences(References), new JsonMergeSettings()
-                {
-                    MergeArrayHandling = MergeArrayHandling.Union
-                });
+            // Merge schema with references
+            MergeObjects(schema, CreateReferences(References));
 
-                // Write schema file
-                using (var sw = new StreamWriter(fs))
-                using (var writer = new JsonTextWriter(sw))
-                {
-                    writer.Formatting = Formatting.Indented;
-
-                    schema.WriteTo(writer);
-                }
+            // Write schema file
+            using (var writer = new Utf8JsonWriter(fs, new JsonWriterOptions { Indented = true }))
+            {
+                schema.WriteTo(writer);
             }
 
             return true;
         }
 
-        private static JObject CreateReferences(ITaskItem[] references)
-            => new JObject()
+        private static JsonObject CreateReferences(ITaskItem[] references)
+            => new JsonObject
             {
-                {
-                    "allOf",
-                    new JArray(references
-                        .OrderBy(x => int.TryParse(x.GetMetadata("Weight"), NumberStyles.Integer, CultureInfo.InvariantCulture, out var order) ? order : 0)
-                        .Select(x => new JObject()
-                        {
-                            { "$ref", x.ItemSpec }
-                        }))
-                }
+                ["allOf"] = new JsonArray(references
+                    .OrderBy(x => int.TryParse(x.GetMetadata("Weight"), NumberStyles.Integer, CultureInfo.InvariantCulture, out var order) ? order : 0)
+                    .Select(x => (JsonNode)new JsonObject
+                    {
+                        ["$ref"] = x.ItemSpec
+                    })
+                    .ToArray())
             };
+
+        /// <summary>
+        /// Merges <paramref name="source"/> into <paramref name="target"/> using union semantics for arrays.
+        /// </summary>
+        private static void MergeObjects(JsonObject target, JsonObject source)
+        {
+            foreach (var property in source.ToList())
+            {
+                if (target.TryGetPropertyValue(property.Key, out JsonNode? targetValue))
+                {
+                    if (targetValue is JsonArray targetArray && property.Value is JsonArray sourceArray)
+                    {
+                        // Union: add items from source that don't already exist in target
+                        var existingItems = new HashSet<string>();
+                        foreach (JsonNode? item in targetArray)
+                        {
+                            existingItems.Add(item?.ToJsonString() ?? "null");
+                        }
+
+                        foreach (JsonNode? item in sourceArray.ToList())
+                        {
+                            if (!existingItems.Contains(item?.ToJsonString() ?? "null"))
+                            {
+                                targetArray.Add(item?.DeepClone());
+                            }
+                        }
+                    }
+                    else if (targetValue is JsonObject targetObj && property.Value is JsonObject sourceObj)
+                    {
+                        MergeObjects(targetObj, sourceObj);
+                    }
+                    else
+                    {
+                        target[property.Key] = property.Value?.DeepClone();
+                    }
+                }
+                else
+                {
+                    target[property.Key] = property.Value?.DeepClone();
+                }
+            }
+        }
     }
 }
