@@ -42,39 +42,37 @@ namespace Umbraco.JsonSchema.Extensions
                 return true;
             }
 
-            using (FileStream fs = File.Open(JsonSchemaFile, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None))
+            using FileStream fs = File.Open(JsonSchemaFile, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None);
+            JsonObject schema;
+            if (fs.Length == 0)
             {
-                JsonObject schema;
-                if (fs.Length == 0)
+                // Create new schema
+                schema = new JsonObject
                 {
-                    // Create new schema
-                    schema = new JsonObject
-                    {
-                        ["$schema"] = "http://json-schema.org/draft-04/schema#"
-                    };
-                }
-                else
+                    ["$schema"] = "http://json-schema.org/draft-04/schema#"
+                };
+            }
+            else
+            {
+                // Read existing schema file
+                schema = (JsonObject)JsonNode.Parse(fs, documentOptions: new JsonDocumentOptions
                 {
-                    // Read existing schema file
-                    schema = (JsonObject)JsonNode.Parse(fs, documentOptions: new JsonDocumentOptions
-                    {
-                        CommentHandling = JsonCommentHandling.Skip,
-                        AllowTrailingCommas = true
-                    })!;
+                    CommentHandling = JsonCommentHandling.Skip,
+                    AllowTrailingCommas = true
+                })!;
 
-                    // Truncate file
-                    fs.SetLength(0);
-                    fs.Position = 0;
-                }
+                // Truncate file
+                fs.SetLength(0);
+                fs.Position = 0;
+            }
 
-                // Merge schema with references
-                MergeObjects(schema, CreateReferences(References));
+            // Merge schema with references
+            MergeObjects(schema, CreateReferences(References));
 
-                // Write schema file
-                using (var writer = new Utf8JsonWriter(fs, new JsonWriterOptions { Indented = true }))
-                {
-                    schema.WriteTo(writer);
-                }
+            // Write schema file
+            using (var writer = new Utf8JsonWriter(fs, new JsonWriterOptions { Indented = true }))
+            {
+                schema.WriteTo(writer);
             }
 
             return true;

@@ -1,4 +1,3 @@
-using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Text.Json;
@@ -46,7 +45,7 @@ namespace Umbraco.JsonSchema.Extensions
             using (FileStream fs = File.Open(JsonFile, FileMode.Open, FileAccess.ReadWrite, FileShare.None))
             {
                 // Read JSON file
-                JsonNode? json = JsonNode.Parse(fs, documentOptions: new JsonDocumentOptions
+                var json = JsonNode.Parse(fs, documentOptions: new JsonDocumentOptions
                 {
                     CommentHandling = JsonCommentHandling.Skip,
                     AllowTrailingCommas = true
@@ -77,7 +76,7 @@ namespace Umbraco.JsonSchema.Extensions
 
                 // Replace value at the last segment
                 PathSegment lastSegment = segments[segments.Count - 1];
-                JsonNode? newValue = JsonNode.Parse(Value);
+                var newValue = JsonNode.Parse(Value);
 
                 if (lastSegment.IsArrayIndex && parent is JsonArray arr)
                 {
