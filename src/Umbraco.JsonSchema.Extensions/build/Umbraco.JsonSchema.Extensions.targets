@@ -7,5 +7,5 @@
   </PropertyGroup>
   <UsingTask TaskName="JsonPathUpdateValue" AssemblyFile="$(JsonSchemaExtensionsTaskAssemblyPath)" />
   <UsingTask TaskName="JsonSchemaAddReferences" AssemblyFile="$(JsonSchemaExtensionsTaskAssemblyPath)" />
-  <UsingTask TaskName="JsonSchemaGenerate" AssemblyFile="$(MSBuildThisFileDirectory)..\tasks\net8.0\Umbraco.JsonSchema.Extensions.dll" Runtime="NET" Architecture="*" />
+  <UsingTask TaskName="JsonSchemaGenerate" AssemblyFile="$(JsonSchemaExtensionsTaskAssemblyPath)" Runtime="NET" Architecture="*" Condition="'$(MSBuildRuntimeType)' == 'Core'" />
 </Project>
