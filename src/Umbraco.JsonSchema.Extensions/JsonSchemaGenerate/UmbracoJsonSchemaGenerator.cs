@@ -10,6 +10,8 @@ namespace Umbraco.JsonSchema.Extensions;
 /// <inheritdoc />
 internal sealed class UmbracoJsonSchemaGenerator : JsonSchemaGenerator
 {
+    private static readonly object _xmlDocsCacheLock = new();
+
     /// <summary>
     /// Initializes a new instance of the <see cref="UmbracoJsonSchemaGenerator" /> class.
     /// </summary>
@@ -48,13 +50,18 @@ internal sealed class UmbracoJsonSchemaGenerator : JsonSchemaGenerator
         // for stream-loaded assemblies (empty Assembly.Location).
         Generate(type);
 
-        // Prime XML docs cache for all loaded assemblies and clear the stale cache entries
-        // that Namotion.Reflection created with null values during the first pass.
-        XmlDocs.ClearCache();
-        loadContext.PrimeXmlDocsCache();
+        // The first pass cached null entries for our stream-loaded assemblies.
+        // We must clear those stale entries before priming with the correct XML docs paths.
+        // Namotion.Reflection only exposes a global ClearCache() (no per-assembly overload),
+        // so we hold a lock to prevent concurrent tasks from losing their primed entries.
+        lock (_xmlDocsCacheLock)
+        {
+            XmlDocs.ClearCache();
+            loadContext.PrimeXmlDocsCache();
 
-        // Generate again — now all XML docs are cached and descriptions will be included.
-        return Generate(type);
+            // Generate again — now all XML docs are cached and descriptions will be included.
+            return Generate(type);
+        }
     }
 
     /// <inheritdoc />
