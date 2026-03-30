@@ -137,12 +137,9 @@ public class JsonSchemaGenerateTests
 
         var schema = ParseSchema(outputPath);
         var enumSchema = schema["definitions"]!["TestStatus"]!;
-        var enumValues = enumSchema["enumeration"]
-            ?? enumSchema["enum"];
+        var enumValues = enumSchema["enum"]!.AsArray();
 
-        Assert.That(enumValues, Is.Not.Null);
-
-        var values = enumValues!.AsArray().Select(v => v?.GetValue<string>()).ToList();
+        var values = enumValues.Select(v => v?.GetValue<string>()).ToList();
         Assert.That(values, Does.Contain("Active"));
         Assert.That(values, Does.Contain("Inactive"));
         Assert.That(values, Does.Contain("Pending"));
@@ -179,7 +176,8 @@ public class JsonSchemaGenerateTests
         sut.Execute();
 
         var schema = ParseSchema(outputPath);
-        Assert.That(schema["additionalProperties"], Is.Not.EqualTo(JsonValue.Create(false)));
+        Assert.That(schema.AsObject().ContainsKey("additionalProperties"), Is.False,
+            "Schema should not explicitly restrict additional properties");
     }
 
     /// <summary>

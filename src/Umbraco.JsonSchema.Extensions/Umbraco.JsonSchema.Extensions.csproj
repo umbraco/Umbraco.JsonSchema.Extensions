@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <TargetFramework /><!-- Clear the Directory.Build.props default to enable multi-targeting -->
     <TargetFrameworks>net472;net8.0</TargetFrameworks>
@@ -30,6 +30,7 @@
   <PropertyGroup>
     <TargetsForTfmSpecificBuildOutput>$(TargetsForTfmSpecificBuildOutput);CopyProjectReferencesToPackage</TargetsForTfmSpecificBuildOutput>
     <BuildOutputTargetFolder>tasks</BuildOutputTargetFolder>
+    <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
     <NoWarn>NU5100;NU5128</NoWarn>
     <GenerateDependencyFile>true</GenerateDependencyFile>
   </PropertyGroup>
