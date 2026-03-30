@@ -102,18 +102,13 @@ internal sealed class PluginLoadContext : AssemblyLoadContext, IDisposable
         // will find the cached document.
         try
         {
-            foreach (Type type in assembly.GetTypes())
-            {
-                type.GetXmlDocsElement(xmlDocsPath);
-                return;
-            }
+            assembly.DefinedTypes.FirstOrDefault()?.GetXmlDocsElement(xmlDocsPath);
         }
         catch (ReflectionTypeLoadException ex)
         {
             // Some types may fail to load due to missing dependencies.
             // Use the first successfully loaded type to prime the cache.
-            Type? type = ex.Types.FirstOrDefault(t => t is not null);
-            type?.GetXmlDocsElement(xmlDocsPath);
+            ex.Types.FirstOrDefault(t => t is not null)?.GetXmlDocsElement(xmlDocsPath);
         }
     }
 }
