@@ -1,23 +1,24 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <TargetFramework>netstandard2.0</TargetFramework>
+    <TargetFramework /><!-- Clear the Directory.Build.props default to enable multi-targeting -->
+    <TargetFrameworks>net472;net8.0</TargetFrameworks>
     <Title>Umbraco JSON schema extensions</Title>
     <Description>Extensions for Umbraco to add JSON schema references and update JSON properties using MSBuild tasks.</Description>
   </PropertyGroup>
-  
+
   <ItemGroup>
     <PackageReference Include="Microsoft.Build.Utilities.Core" PrivateAssets="all" ExcludeAssets="runtime" />
     <PackageReference Include="Newtonsoft.Json" PrivateAssets="all" GeneratePathProperty="true" />
   </ItemGroup>
 
   <ItemGroup>
-    <None Include="$(PkgNewtonsoft_Json)\lib\netstandard2.0\*.dll" Pack="true" PackagePath="$(BuildOutputTargetFolder)\$(TargetFramework)" Visible="false" />
     <None Include="build\**" Pack="true" PackagePath="build" />
   </ItemGroup>
 
   <!-- Package the task for distribution, see: https://learn.microsoft.com/en-us/visualstudio/msbuild/tutorial-custom-task-code-generation?view=vs-2022#package-the-task-for-distribution -->
   <PropertyGroup>
     <TargetsForTfmSpecificBuildOutput>$(TargetsForTfmSpecificBuildOutput);CopyProjectReferencesToPackage</TargetsForTfmSpecificBuildOutput>
+    <TargetsForTfmSpecificContentInPackage>$(TargetsForTfmSpecificContentInPackage);BundleNewtonsoftJson</TargetsForTfmSpecificContentInPackage>
     <BuildOutputTargetFolder>tasks</BuildOutputTargetFolder>
     <NoWarn>NU5100;NU5128</NoWarn>
     <GenerateDependencyFile>true</GenerateDependencyFile>
@@ -30,6 +31,12 @@
   <Target Name="AddBuildDependencyFileToBuiltProjectOutputGroupOutput" BeforeTargets="BuiltProjectOutputGroup" Condition="'$(GenerateDependencyFile)' == 'true'">
     <ItemGroup>
       <BuiltProjectOutputGroupOutput Include="$(ProjectDepsFilePath)" TargetPath="$(ProjectDepsFileName)" FinalOutputPath="$(ProjectDepsFilePath)" />
+    </ItemGroup>
+  </Target>
+  <!-- Bundle Newtonsoft.Json for net8.0 into the NuGet package; for net472 it is already included via CopyProjectReferencesToPackage -->
+  <Target Name="BundleNewtonsoftJson">
+    <ItemGroup Condition="'$(TargetFramework)' == 'net8.0'">
+      <TfmSpecificPackageFile Include="$(PkgNewtonsoft_Json)\lib\netstandard2.0\Newtonsoft.Json.dll" PackagePath="tasks\$(TargetFramework)" />
     </ItemGroup>
   </Target>
 </Project>
