@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <TargetFramework /><!-- Clear the Directory.Build.props default to enable multi-targeting -->
     <TargetFrameworks>net472;net8.0</TargetFrameworks>
@@ -7,8 +7,19 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <InternalsVisibleTo Include="Umbraco.JsonSchema.Extensions.UnitTests" />
+  </ItemGroup>
+
+  <ItemGroup>
     <PackageReference Include="Microsoft.Build.Utilities.Core" PrivateAssets="all" ExcludeAssets="runtime" />
+    <PackageReference Include="NJsonSchema" PrivateAssets="all" Condition="'$(TargetFramework)' == 'net8.0'" />
     <PackageReference Include="System.Text.Json" PrivateAssets="all" Condition="'$(TargetFramework)' == 'net472'" />
+  </ItemGroup>
+
+  <!-- JsonSchemaGenerate is a net8.0 only task -->
+  <ItemGroup Condition="'$(TargetFramework)' == 'net472'">
+    <Compile Remove="JsonSchemaGenerate\**" />
+    <Content Include="JsonSchemaGenerate\**" />
   </ItemGroup>
 
   <ItemGroup>
