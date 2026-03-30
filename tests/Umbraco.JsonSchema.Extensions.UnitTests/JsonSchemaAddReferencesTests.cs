@@ -52,9 +52,9 @@ public class JsonSchemaAddReferencesTests
         };
 
         var result = sut.Execute();
-        Assert.True(result);
+        Assert.That(result, Is.True);
 
-        FileAssert.DoesNotExist(TempFile("should-not-exist.json"));
+        Assert.That(TempFile("should-not-exist.json"), Does.Not.Exist);
     }
 
     /// <summary>
@@ -71,8 +71,8 @@ public class JsonSchemaAddReferencesTests
         };
 
         var result = sut.Execute();
-        Assert.True(result);
-        FileAssert.Exists(path);
+        Assert.That(result, Is.True);
+        Assert.That(path, Does.Exist);
 
         JsonObject schema = JsonNode.Parse(File.ReadAllText(path))!.AsObject();
         Assert.That(schema["$schema"]?.GetValue<string>(), Is.EqualTo("http://json-schema.org/draft-04/schema#"));
@@ -102,7 +102,7 @@ public class JsonSchemaAddReferencesTests
         };
 
         var result = sut.Execute();
-        Assert.True(result);
+        Assert.That(result, Is.True);
 
         JsonObject schema = JsonNode.Parse(File.ReadAllText(path))!.AsObject();
         JsonArray allOf = schema["allOf"]!.AsArray();
@@ -130,7 +130,7 @@ public class JsonSchemaAddReferencesTests
         };
 
         var result = sut.Execute();
-        Assert.True(result);
+        Assert.That(result, Is.True);
 
         JsonArray allOf = JsonNode.Parse(File.ReadAllText(path))!["allOf"]!.AsArray();
         Assert.That(allOf[0]!["$ref"]!.GetValue<string>(), Is.EqualTo("noweight.json"));
@@ -163,7 +163,7 @@ public class JsonSchemaAddReferencesTests
         };
 
         var result = sut.Execute();
-        Assert.True(result);
+        Assert.That(result, Is.True);
 
         JsonArray allOf = JsonNode.Parse(File.ReadAllText(path))!["allOf"]!.AsArray();
         Assert.That(allOf.Count, Is.EqualTo(2));
@@ -196,7 +196,7 @@ public class JsonSchemaAddReferencesTests
         };
 
         var result = sut.Execute();
-        Assert.True(result);
+        Assert.That(result, Is.True);
 
         JsonObject schema = JsonNode.Parse(File.ReadAllText(path))!.AsObject();
         Assert.That(schema["title"]?.GetValue<string>(), Is.EqualTo("My Schema"));
@@ -231,7 +231,7 @@ public class JsonSchemaAddReferencesTests
         };
 
         var result = sut.Execute();
-        Assert.True(result);
+        Assert.That(result, Is.True);
 
         JsonArray allOf = JsonNode.Parse(File.ReadAllText(path))!["allOf"]!.AsArray();
         Assert.That(allOf.Count, Is.EqualTo(2));

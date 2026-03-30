@@ -51,7 +51,7 @@ public class JsonPathUpdateValueTests
         };
 
         var result = sut.Execute();
-        Assert.True(result);
+        Assert.That(result, Is.True);
 
         JsonNode json = JsonNode.Parse(File.ReadAllText(path))!;
         Assert.That(json["foo"]!.GetValue<string>(), Is.EqualTo("new"));
@@ -73,7 +73,7 @@ public class JsonPathUpdateValueTests
         };
 
         var result = sut.Execute();
-        Assert.True(result);
+        Assert.That(result, Is.True);
 
         JsonNode json = JsonNode.Parse(File.ReadAllText(path))!;
         Assert.That(json["a"]!["b"]!["c"]!.GetValue<int>(), Is.EqualTo(42));
@@ -95,7 +95,7 @@ public class JsonPathUpdateValueTests
         };
 
         var result = sut.Execute();
-        Assert.True(result);
+        Assert.That(result, Is.True);
 
         JsonNode json = JsonNode.Parse(File.ReadAllText(path))!;
         Assert.That(json["items"]![1]!.GetValue<string>(), Is.EqualTo("replaced"));
@@ -121,7 +121,7 @@ public class JsonPathUpdateValueTests
         };
 
         var result = sut.Execute();
-        Assert.True(result);
+        Assert.That(result, Is.True);
 
         JsonNode json = JsonNode.Parse(File.ReadAllText(path))!;
         Assert.That(json["foo"]!.GetValue<string>(), Is.EqualTo("bracket"));
@@ -144,7 +144,7 @@ public class JsonPathUpdateValueTests
         };
 
         var result = sut.Execute();
-        Assert.True(result);
+        Assert.That(result, Is.True);
 
         // Re-parse both to compare structure (whitespace may differ)
         var originalJson = JsonNode.Parse(original)!.ToJsonString();
@@ -168,7 +168,7 @@ public class JsonPathUpdateValueTests
         };
 
         var result = sut.Execute();
-        Assert.True(result);
+        Assert.That(result, Is.True);
 
         JsonNode json = JsonNode.Parse(File.ReadAllText(path))!;
         Assert.That(json["config"]!["key"]!.GetValue<string>(), Is.EqualTo("value"));
@@ -191,7 +191,7 @@ public class JsonPathUpdateValueTests
         };
 
         var result = sut.Execute();
-        Assert.True(result);
+        Assert.That(result, Is.True);
 
         JsonObject json = JsonNode.Parse(File.ReadAllText(path))!.AsObject();
         Assert.That(json.ContainsKey("foo"), Is.True);
@@ -219,7 +219,7 @@ public class JsonPathUpdateValueTests
         };
 
         var result = sut.Execute();
-        Assert.True(result);
+        Assert.That(result, Is.True);
 
         JsonNode json = JsonNode.Parse(File.ReadAllText(path))!;
         Assert.That(json["value"]!.GetValue<string>(), Is.EqualTo("new"));
@@ -262,7 +262,7 @@ public class JsonPathUpdateValueTests
         };
 
         var result = sut.Execute();
-        Assert.True(result);
+        Assert.That(result, Is.True);
 
         JsonArray arr = JsonNode.Parse(File.ReadAllText(path))!["items"]!.AsArray();
         Assert.That(arr.Count, Is.EqualTo(2));
@@ -284,7 +284,7 @@ public class JsonPathUpdateValueTests
         };
 
         var result = sut.Execute();
-        Assert.True(result);
+        Assert.That(result, Is.True);
 
         JsonNode json = JsonNode.Parse(File.ReadAllText(path))!;
         Assert.That(json["foo"]!.GetValue<string>(), Is.EqualTo("new"));
