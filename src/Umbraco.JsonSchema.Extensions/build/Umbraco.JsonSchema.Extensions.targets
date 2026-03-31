@@ -1,10 +1,16 @@
 <?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="Current" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
-  <!-- Use net8.0 assembly when running on .NET (Core), net472 assembly when running on .NET Framework -->
   <PropertyGroup>
-    <JsonSchemaExtensionsTaskAssemblyPath Condition="'$(MSBuildRuntimeType)' == 'Core'">$(MSBuildThisFileDirectory)..\tasks\net8.0\Umbraco.JsonSchema.Extensions.dll</JsonSchemaExtensionsTaskAssemblyPath>
-    <JsonSchemaExtensionsTaskAssemblyPath Condition="'$(MSBuildRuntimeType)' != 'Core'">$(MSBuildThisFileDirectory)..\tasks\net472\Umbraco.JsonSchema.Extensions.dll</JsonSchemaExtensionsTaskAssemblyPath>
+    <!-- net8.0 task assembly (used by JsonSchemaGenerate, which always runs on .NET Core) -->
+    <_JsonSchemaExtensionsTaskAssemblyPathCore>$(MSBuildThisFileDirectory)..\tasks\net8.0\Umbraco.JsonSchema.Extensions.dll</_JsonSchemaExtensionsTaskAssemblyPathCore>
+    <!-- Runtime-appropriate task assembly: net8.0 on .NET Core, netstandard2.0 on .NET Framework -->
+    <_JsonSchemaExtensionsTaskAssemblyPath>$(MSBuildThisFileDirectory)..\tasks\netstandard2.0\Umbraco.JsonSchema.Extensions.dll</_JsonSchemaExtensionsTaskAssemblyPath>
+    <_JsonSchemaExtensionsTaskAssemblyPath Condition="'$(MSBuildRuntimeType)' == 'Core'">$(_JsonSchemaExtensionsTaskAssemblyPathCore)</_JsonSchemaExtensionsTaskAssemblyPath>
   </PropertyGroup>
-  <UsingTask TaskName="JsonPathUpdateValue" AssemblyFile="$(JsonSchemaExtensionsTaskAssemblyPath)" />
-  <UsingTask TaskName="JsonSchemaAddReferences" AssemblyFile="$(JsonSchemaExtensionsTaskAssemblyPath)" />
+  <UsingTask TaskName="JsonPathUpdateValue" AssemblyFile="$(_JsonSchemaExtensionsTaskAssemblyPath)" />
+  <UsingTask TaskName="JsonSchemaAddReferences" AssemblyFile="$(_JsonSchemaExtensionsTaskAssemblyPath)" />
+  <!-- JsonSchemaGenerate: in-process on .NET Core MSBuild -->
+  <UsingTask TaskName="JsonSchemaGenerate" AssemblyFile="$(_JsonSchemaExtensionsTaskAssemblyPathCore)" Condition="'$(MSBuildRuntimeType)' == 'Core'" />
+  <!-- JsonSchemaGenerate: out-of-process via .NET TaskHost on .NET Framework MSBuild 18.0+ -->
+  <UsingTask TaskName="JsonSchemaGenerate" AssemblyFile="$(_JsonSchemaExtensionsTaskAssemblyPathCore)" TaskFactory="TaskHostFactory" Runtime="NET" Architecture="CurrentArchitecture" Condition="'$(MSBuildRuntimeType)' == 'Full'" />
 </Project>

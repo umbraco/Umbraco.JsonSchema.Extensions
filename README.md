@@ -28,3 +28,37 @@ Updates the value of a property in a JSON file using a JSON path expression.
   <JsonPathUpdateValue JsonFile="%(_PackageManifestFiles.FullPath)" Path="$.version" Value="&quot;$(PackageVersion)&quot;" />
 </Target>
 ```
+
+## JsonSchemaGenerate
+
+Generates a JSON schema from a C# type in an assembly. XML documentation comments are included as `description` fields in the generated schema, providing IntelliSense tooltips in editors.
+
+> **Note:** This task requires .NET Core MSBuild (i.e. `dotnet build`) or Visual Studio 2026+ (MSBuild 18.0+), which supports running .NET Core tasks via the TaskHost. It is not available when building with Visual Studio 2022 or earlier.
+
+| Parameter | Required | Description |
+|-----------|----------|-------------|
+| `AssemblyPath` | Yes | Path to the assembly file containing the type |
+| `TypeName` | Yes | Fully qualified type name to generate the schema for |
+| `OutputPath` | Yes | Output file path for the generated JSON schema |
+| `IncludeObsoleteProperties` | No | Whether to include properties marked with `[Obsolete]` (default: `false`) |
+
+```xml
+<!-- Add JSON schema file to package output -->
+<PropertyGroup>
+  <_JsonSchemaFile>appsettings-schema.MyPackage.json</_JsonSchemaFile>
+</PropertyGroup>
+<ItemGroup>
+  <Content Include="$(_JsonSchemaFile)" PackagePath="" Visible="false" />
+</ItemGroup>
+
+<!-- Generate JSON schema on build (skipped when file already exists) -->
+<Target Name="GenerateAppsettingsSchema" AfterTargets="Build" Condition="!Exists('$(_JsonSchemaFile)')">
+  <Message Text="Generating $(_JsonSchemaFile) because it doesn't exist" Importance="high" />
+  <JsonSchemaGenerate AssemblyPath="$(TargetPath)" TypeName="MyPackage.MyPackageSchema" OutputPath="$(MSBuildThisFileDirectory)$(_JsonSchemaFile)" />
+</Target>
+
+<!-- Remove generated JSON schema on clean -->
+<Target Name="RemoveAppsettingsSchema" AfterTargets="Clean" Condition="Exists('$(_JsonSchemaFile)')">
+  <Delete Files="$(_JsonSchemaFile)" />
+</Target>
+```
