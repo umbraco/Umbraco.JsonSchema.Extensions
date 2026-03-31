@@ -33,7 +33,7 @@ Updates the value of a property in a JSON file using a JSON path expression.
 
 Generates a JSON schema from a C# type in an assembly. XML documentation comments are included as `description` fields in the generated schema, providing IntelliSense tooltips in editors.
 
-> **Note:** This task requires .NET Core MSBuild (i.e. `dotnet build`). It is not available when building with .NET Framework MSBuild.
+> **Note:** This task requires .NET Core MSBuild (i.e. `dotnet build`) or Visual Studio 2026+ (MSBuild 18.0+), which supports running .NET Core tasks via the TaskHost. It is not available when building with Visual Studio 2022 or earlier.
 
 | Parameter | Required | Description |
 |-----------|----------|-------------|
