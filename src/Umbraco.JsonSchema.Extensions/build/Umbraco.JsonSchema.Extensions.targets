@@ -1,11 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="Current" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
-  <!-- Use net8.0 assembly when running on .NET (Core), net472 assembly when running on .NET Framework -->
+  <!-- Select TFM-specific task assembly: netstandard2.0 on .NET Framework, net8.0 on .NET Core -->
   <PropertyGroup>
-    <JsonSchemaExtensionsTaskAssemblyPath Condition="'$(MSBuildRuntimeType)' == 'Core'">$(MSBuildThisFileDirectory)..\tasks\net8.0\Umbraco.JsonSchema.Extensions.dll</JsonSchemaExtensionsTaskAssemblyPath>
-    <JsonSchemaExtensionsTaskAssemblyPath Condition="'$(MSBuildRuntimeType)' != 'Core'">$(MSBuildThisFileDirectory)..\tasks\net472\Umbraco.JsonSchema.Extensions.dll</JsonSchemaExtensionsTaskAssemblyPath>
+    <_JsonSchemaExtensionsTaskTfm>netstandard2.0</_JsonSchemaExtensionsTaskTfm>
+    <_JsonSchemaExtensionsTaskTfm Condition="'$(MSBuildRuntimeType)' == 'Core'">net8.0</_JsonSchemaExtensionsTaskTfm>
+    <JsonSchemaExtensionsTaskAssemblyPath>$(MSBuildThisFileDirectory)..\tasks\$(_JsonSchemaExtensionsTaskTfm)\Umbraco.JsonSchema.Extensions.dll</JsonSchemaExtensionsTaskAssemblyPath>
   </PropertyGroup>
   <UsingTask TaskName="JsonPathUpdateValue" AssemblyFile="$(JsonSchemaExtensionsTaskAssemblyPath)" />
   <UsingTask TaskName="JsonSchemaAddReferences" AssemblyFile="$(JsonSchemaExtensionsTaskAssemblyPath)" />
+  <!-- JsonSchemaGenerate requires .NET Core (uses AssemblyLoadContext) -->
   <UsingTask TaskName="JsonSchemaGenerate" AssemblyFile="$(JsonSchemaExtensionsTaskAssemblyPath)" Runtime="NET" Architecture="*" Condition="'$(MSBuildRuntimeType)' == 'Core'" />
 </Project>

@@ -176,7 +176,9 @@ public class JsonSchemaGenerateTests
         sut.Execute();
 
         var schema = ParseSchema(outputPath);
-        Assert.That(schema.AsObject().ContainsKey("additionalProperties"), Is.False,
+        Assert.That(
+            schema.AsObject().ContainsKey("additionalProperties"),
+            Is.False,
             "Schema should not explicitly restrict additional properties");
     }
 

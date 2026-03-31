@@ -38,7 +38,7 @@
 
   <!-- Package Validation -->
   <PropertyGroup>
-    <EnablePackageValidation>false</EnablePackageValidation><!-- TODO: Re-enable once a net472;net8.0 baseline package is available -->
+    <EnablePackageValidation>true</EnablePackageValidation>
     <PackageValidationBaselineVersion>0.1.0</PackageValidationBaselineVersion>
     <EnableStrictModeForCompatibleFrameworksInPackage>true</EnableStrictModeForCompatibleFrameworksInPackage>
     <EnableStrictModeForCompatibleTfms>true</EnableStrictModeForCompatibleTfms>
