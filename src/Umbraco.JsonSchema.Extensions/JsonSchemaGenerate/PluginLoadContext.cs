@@ -16,6 +16,8 @@ namespace Umbraco.JsonSchema.Extensions;
 internal sealed class PluginLoadContext : AssemblyLoadContext, IDisposable
 {
     private readonly AssemblyDependencyResolver _resolver;
+    private readonly DepsJsonPackageResolver _depsResolver;
+    private readonly string _pluginDirectory;
     private readonly List<(Assembly Assembly, string Path)> _pendingXmlDocsPriming = [];
 
     /// <summary>
@@ -24,7 +26,11 @@ internal sealed class PluginLoadContext : AssemblyLoadContext, IDisposable
     /// <param name="pluginPath">The plugin path.</param>
     public PluginLoadContext(string pluginPath)
         : base(isCollectible: true)
-        => _resolver = new AssemblyDependencyResolver(pluginPath);
+    {
+        _resolver = new AssemblyDependencyResolver(pluginPath);
+        _depsResolver = new DepsJsonPackageResolver(pluginPath);
+        _pluginDirectory = System.IO.Path.GetDirectoryName(pluginPath) ?? string.Empty;
+    }
 
     /// <summary>
     /// Loads an assembly from a file path without locking the file.
@@ -65,16 +71,31 @@ internal sealed class PluginLoadContext : AssemblyLoadContext, IDisposable
     /// <inheritdoc />
     protected override Assembly? Load(AssemblyName assemblyName)
     {
+        // Tier 1: built-in resolver (handles exe projects and local deps).
         string? assemblyPath = _resolver.ResolveAssemblyToPath(assemblyName);
-        if (assemblyPath != null)
+
+        // Tier 2: deps.json + NuGet global cache (handles library projects with package deps).
+        assemblyPath ??= _depsResolver.ResolveAssemblyToPath(assemblyName.Name!);
+
+        // Tier 3: same-directory scan (handles ProjectReference outputs and CopyLocal scenarios).
+        if (assemblyPath is null)
         {
-            using var stream = File.OpenRead(assemblyPath);
-            Assembly assembly = LoadFromStream(stream);
-            _pendingXmlDocsPriming.Add((assembly, assemblyPath));
-            return assembly;
+            var candidate = Path.Combine(_pluginDirectory, assemblyName.Name + ".dll");
+            if (File.Exists(candidate))
+            {
+                assemblyPath = candidate;
+            }
         }
 
-        return null;
+        if (assemblyPath is null)
+        {
+            return null;
+        }
+
+        using var stream = File.OpenRead(assemblyPath);
+        Assembly assembly = LoadFromStream(stream);
+        _pendingXmlDocsPriming.Add((assembly, assemblyPath));
+        return assembly;
     }
 
     /// <inheritdoc />
