@@ -234,6 +234,30 @@ public class JsonSchemaGenerateTests
     }
 
     /// <summary>
+    /// The task resolves types from NuGet-packaged assemblies when generating cross-assembly schemas.
+    /// </summary>
+    [Test]
+    public void Execute_ResolvesTransitiveNuGetDependencies()
+    {
+        var outputPath = TempFile("cross-assembly-schema.json");
+        var sut = new JsonSchemaGenerate
+        {
+            AssemblyPath = typeof(CrossAssemblyTestModel).Assembly.Location,
+            TypeName = typeof(CrossAssemblyTestModel).FullName!,
+            OutputPath = outputPath,
+            BuildEngine = new FakeBuildEngine(),
+        };
+
+        var result = sut.Execute();
+
+        Assert.That(result, Is.True);
+        Assert.That(File.Exists(outputPath), Is.True);
+
+        var schema = ParseSchema(outputPath);
+        Assert.That(schema["properties"]!["Name"], Is.Not.Null);
+    }
+
+    /// <summary>
     /// The task creates the output directory if it does not exist.
     /// </summary>
     [Test]
@@ -343,4 +367,21 @@ public class JsonSchemaGenerateTests
 
         public void LogWarningEvent(BuildWarningEventArgs e) { }
     }
+}
+
+/// <summary>
+/// Test model with a property from a NuGet-packaged assembly (NJsonSchema).
+/// Forces the schema generator to resolve cross-assembly types.
+/// </summary>
+internal sealed class CrossAssemblyTestModel
+{
+    /// <summary>
+    /// A writable property whose type comes from a NuGet package.
+    /// </summary>
+    public NJsonSchema.JsonObjectType SchemaType { get; set; }
+
+    /// <summary>
+    /// A regular writable property.
+    /// </summary>
+    public string Name { get; set; } = string.Empty;
 }
