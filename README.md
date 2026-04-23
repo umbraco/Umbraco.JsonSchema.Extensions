@@ -35,6 +35,8 @@ Generates a JSON schema from a C# type in an assembly. XML documentation comment
 
 > **Note:** This task requires .NET Core MSBuild (i.e. `dotnet build`) or Visual Studio 2026+ (MSBuild 18.0+), which supports running .NET Core tasks via the TaskHost. It is not available when building with Visual Studio 2022 or earlier.
 
+> **Note:** When executing this task from a class library (`Microsoft.NET.Sdk` with `<OutputType>Library</OutputType>`, the default) and the type being generated depends on assemblies from referenced NuGet packages (e.g. `Umbraco.Core`), set `<CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>` in the project file. This ensures the dependency DLLs are copied next to the target assembly so they can be resolved at build time. This is already the default for executable projects, including the Web (`Microsoft.NET.Sdk.Web`), Worker (`Microsoft.NET.Sdk.Worker`), and Blazor WebAssembly (`Microsoft.NET.Sdk.BlazorWebAssembly`) SDKs.
+
 | Parameter | Required | Description |
 |-----------|----------|-------------|
 | `AssemblyPath` | Yes | Path to the assembly file containing the type |
