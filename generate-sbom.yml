@@ -35,6 +35,7 @@ steps:
       mkdir -p $(Build.ArtifactStagingDirectory)/sbom
       npx @cyclonedx/cdxgen --recurse \
         --output $(Build.ArtifactStagingDirectory)/sbom/sbom.json \
+        --spec-version 1.6 \
         --json-pretty \
         --project-group "${{ parameters.productGroup }}" \
         --project-name "${{ parameters.productName }}" \
