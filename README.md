@@ -45,22 +45,21 @@ Generates a JSON schema from a C# type in an assembly. XML documentation comment
 | `IncludeObsoleteProperties` | No | Whether to include properties marked with `[Obsolete]` (default: `false`) |
 
 ```xml
-<!-- Add JSON schema file to package output -->
+<!-- Add JSON schema file to package output and remove on clean -->
 <PropertyGroup>
   <_JsonSchemaFile>appsettings-schema.MyPackage.json</_JsonSchemaFile>
 </PropertyGroup>
 <ItemGroup>
   <Content Include="$(_JsonSchemaFile)" PackagePath="" Visible="false" />
+  <Clean Include="$(_JsonSchemaFile)" />
 </ItemGroup>
 
-<!-- Generate JSON schema on build (skipped when file already exists) -->
-<Target Name="GenerateAppsettingsSchema" AfterTargets="Build" Condition="!Exists('$(_JsonSchemaFile)')">
-  <Message Text="Generating $(_JsonSchemaFile) because it doesn't exist" Importance="high" />
+<!-- Generate JSON schema on build (regenerated when assembly is newer) -->
+<Target Name="GenerateAppsettingsSchema" AfterTargets="Build" Inputs="$(TargetPath)" Outputs="$(_JsonSchemaFile)">
+  <Message Text="Generating $(_JsonSchemaFile)" Importance="high" />
   <JsonSchemaGenerate AssemblyPath="$(TargetPath)" TypeName="MyPackage.MyPackageSchema" OutputPath="$(MSBuildThisFileDirectory)$(_JsonSchemaFile)" />
-</Target>
-
-<!-- Remove generated JSON schema on clean -->
-<Target Name="RemoveAppsettingsSchema" AfterTargets="Clean" Condition="Exists('$(_JsonSchemaFile)')">
-  <Delete Files="$(_JsonSchemaFile)" />
+  <ItemGroup>
+    <FileWrites Include="$(_JsonSchemaFile)" />
+  </ItemGroup>
 </Target>
 ```
