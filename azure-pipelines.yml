@@ -60,11 +60,7 @@ stages:
           # Build
           - script: dotnet build $(solution) --configuration $(buildConfiguration) --no-restore -p:ContinuousIntegrationBuild=true
             displayName: Run dotnet build
-
-          # Set major version for dependent stages
-          - script: echo "##vso[task.setvariable variable=majorVersion;isOutput=true]$(NBGV_VersionMajor)"
-            displayName: Set majorVersion output variable
-            name: nbgv
+            name: build
 
           # Pack
           - script: dotnet pack $(solution) --configuration $(buildConfiguration) --no-build --output $(Build.ArtifactStagingDirectory)/nupkg
@@ -137,7 +133,7 @@ stages:
         ne('${{ parameters.skip_sbom }}', true)
       )
     variables:
-      majorVersion: $[ stageDependencies.Build.Build.outputs['nbgv.majorVersion'] ]
+      majorVersion: $[ stageDependencies.Build.Build.outputs['build.NBGV_VersionMajor'] ]
     jobs:
       - job: GenerateSBOM
         displayName: Generate SBOM
