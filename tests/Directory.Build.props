@@ -4,6 +4,13 @@
   <Import Project="$([MSBuild]::GetPathOfFileAbove(Directory.Build.props, $(MSBuildThisFileDirectory)..))" />
 
   <PropertyGroup>
+    <!-- net10.0 to run on the .NET 10 SDK's runtime (the task assembly under test stays net8.0) -->
+    <TargetFramework>net10.0</TargetFramework>
+    <EnableNUnitRunner>true</EnableNUnitRunner>
+    <UseAppHost>false</UseAppHost>
+  </PropertyGroup>
+
+  <PropertyGroup>
     <IsTestProject>true</IsTestProject>
     <IsPackable>false</IsPackable>
     <EnablePackageValidation>false</EnablePackageValidation>

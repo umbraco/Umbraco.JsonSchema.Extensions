@@ -11,13 +11,35 @@ parameters:
     displayName: Cache NuGet packages
     type: boolean
     default: true
-  - name: skip_sbom
-    displayName: Skip SBOM generation
-    type: boolean
-    default: false
+  - name: release_myget
+    displayName: Release to MyGet
+    type: string
+    default: auto
+    values:
+      - auto # Only release to MyGet on public releases, otherwise skip
+      - prerelease # Release to MyGet pre-release feed, regardless of release type
+      - nightly # Release to MyGet nightly feed, regardless of release type
+      - skip # Skip releasing to MyGet, regardless of release type
+  - name: release
+    displayName: Release
+    type: string
+    default: auto
+    values:
+      - auto # Only release to NuGet on public releases, otherwise skip
+      - public # Release to NuGet, regardless of release type
+      - skip # Skip releasing to NuGet, regardless of release type
+  - name: sbom
+    displayName: SBOM
+    type: string
+    default: auto
+    values:
+      - auto # Only generate SBOM for the develop branch, otherwise skip
+      - force # Generate SBOM, regardless of branch
+      - skip # Skip generating SBOM, regardless of branch
 
 variables:
   solution: Umbraco.JsonSchema.Extensions.sln
+  vmImage: 'ubuntu-latest'
   buildConfiguration: Release
   DOTNET_NOLOGO: true
   DOTNET_GENERATE_ASPNET_CERTIFICATE: false
@@ -31,7 +53,7 @@ stages:
     jobs:
       - job: Build
         pool:
-          vmImage: 'ubuntu-latest'
+          vmImage: $(vmImage)
         steps:
           # Checkout source (avoid shallow clone to calculate version height)
           - checkout: self
@@ -67,20 +89,18 @@ stages:
             displayName: Run dotnet pack
 
           # Publish
-          - task: PublishPipelineArtifact@1
+          - publish: $(Build.ArtifactStagingDirectory)/nupkg
+            artifact: nupkg
             displayName: Publish NuGet packages
-            inputs:
-              targetPath: $(Build.ArtifactStagingDirectory)/nupkg
-              artifactName: nupkg
 
-          - task: PublishPipelineArtifact@1
+          - publish: $(Build.SourcesDirectory)
+            artifact: build_output
             displayName: Publish build output
-            inputs:
-              targetPath: $(Build.SourcesDirectory)
-              artifactName: build_output
 
   - stage: Test
     dependsOn: Build
+    variables:
+      NUGET_PACKAGES: $(Pipeline.Workspace)/.nuget/packages
     jobs:
       - job: UnitTests
         displayName: Unit Tests
@@ -97,7 +117,7 @@ stages:
         steps:
           # Setup test environment
           - task: DownloadPipelineArtifact@2
-            displayName: Download build artifacts
+            displayName: Download build output artifact
             inputs:
               artifact: build_output
               path: $(Build.SourcesDirectory)
@@ -107,8 +127,22 @@ stages:
             inputs:
               useGlobalJson: true
 
+          # Cache and restore NuGet packages
+          - task: Cache@2
+            condition: ${{ parameters.cache_nuget }}
+            displayName: Cache NuGet packages
+            inputs:
+              key: 'nuget | "$(Agent.OS)" | **/packages.lock.json, !**/bin/**, !**/obj/**'
+              restoreKeys: |
+                nuget | "$(Agent.OS)"
+                nuget
+              path: $(NUGET_PACKAGES)
+
+          - script: dotnet restore $(solution) --locked-mode
+            displayName: Restore NuGet packages
+
           # Test
-          - script: dotnet test $(solution) --configuration $(buildConfiguration) --no-build --logger trx --results-directory $(Build.ArtifactStagingDirectory)/tests
+          - script: dotnet test --solution $(solution) --configuration $(buildConfiguration) --no-build --results-directory $(Build.ArtifactStagingDirectory)/tests --report-trx
             displayName: Run dotnet test
 
           # Publish
@@ -122,15 +156,86 @@ stages:
               testRunTitle: Unit Tests - $(Agent.OS)
               configuration: $(buildConfiguration)
 
-  # Generate SBOM on development branch
-  - stage: GenerateSBOM
-    displayName: Generate SBOM
-    dependsOn: Build
+  - stage: ReleaseMyGet
+    displayName: Release to MyGet
+    dependsOn:
+      - Build
+      - Test
     condition: |
       and(
         succeeded('Build'),
-        eq(variables['Build.SourceBranch'], 'refs/heads/develop'),
-        ne('${{ parameters.skip_sbom }}', true)
+        ne('${{ parameters.release_myget }}', 'skip'),
+        or(
+          ne('${{ parameters.release_myget }}', 'auto'),
+          eq(dependencies.Build.outputs['Build.build.NBGV_PublicRelease'], true)
+        )
+      )
+    jobs:
+      - job: NuGet
+        pool:
+          vmImage: 'windows-latest' # NuGetCommand@2 requires Mono and is no longer supported on Ubuntu 24.04+
+        steps:
+          - checkout: none
+
+          - download: current
+            artifact: nupkg
+            displayName: Download nupkg artifact
+
+          - task: NuGetCommand@2
+            displayName: NuGet push
+            inputs:
+              command: push
+              packagesToPush: '$(Pipeline.Workspace)/nupkg/*.nupkg'
+              nuGetFeedType: external
+              ${{ if eq(parameters.release_myget, 'nightly') }}:
+                publishFeedCredentials: 'MyGet - Nightly'
+              ${{ else }}:
+                publishFeedCredentials: 'MyGet - Pre-releases'
+
+  - stage: Release
+    dependsOn:
+      - Build
+      - Test
+      - ReleaseMyGet
+    condition: |
+      and(
+        succeeded('Build'),
+        ne('${{ parameters.release }}', 'skip'),
+        or(
+          ne('${{ parameters.release }}', 'auto'),
+          eq(dependencies.Build.outputs['Build.build.NBGV_PublicRelease'], true)
+        )
+      )
+    jobs:
+      - job: NuGet
+        pool:
+          vmImage: 'windows-latest' # NuGetCommand@2 requires Mono and is no longer supported on Ubuntu 24.04+
+        steps:
+          - checkout: none
+
+          - download: current
+            artifact: nupkg
+            displayName: Download nupkg artifact
+
+          - task: NuGetCommand@2
+            displayName: NuGet push
+            inputs:
+              command: push
+              packagesToPush: '$(Pipeline.Workspace)/nupkg/*.nupkg'
+              nuGetFeedType: external
+              publishFeedCredentials: 'NuGet'
+
+  # Generate SBOM on development branch
+  - stage: SBOM
+    dependsOn: Build
+    condition: |
+      and(
+        succeeded(),
+        ne('${{ parameters.sbom }}', 'skip'),
+        or(
+          ne('${{ parameters.sbom }}', 'auto'),
+          eq(variables['Build.SourceBranch'], 'refs/heads/develop')
+        )
       )
     variables:
       majorVersion: $[ stageDependencies.Build.Build.outputs['build.NBGV_VersionMajor'] ]
@@ -138,7 +243,7 @@ stages:
       - job: GenerateSBOM
         displayName: Generate SBOM
         pool:
-          vmImage: 'ubuntu-latest'
+          vmImage: $(vmImage)
         steps:
           - template: generate-sbom.yml
             parameters:
