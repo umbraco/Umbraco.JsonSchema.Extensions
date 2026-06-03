@@ -75,10 +75,11 @@ internal sealed class UmbracoJsonSchemaGenerator : JsonSchemaGenerator
 
             if (settings.SerializerOptions.IgnoreReadOnlyProperties)
             {
-                // Remove read-only properties (because this is not implemented by the base class)
+                // Remove properties without a public setter (read-only or non-public, e.g. internal), as these
+                // aren't (de)serialized by System.Text.Json and read-only removal isn't implemented by the base class
                 foreach (ContextualPropertyInfo property in contextualType.Properties)
                 {
-                    if (property.CanWrite is false)
+                    if (property.PropertyInfo.SetMethod?.IsPublic is not true)
                     {
                         string propertyName = GetPropertyName(property, settings);
 

@@ -94,6 +94,21 @@ public class JsonSchemaGenerateTests
     }
 
     /// <summary>
+    /// The generated schema excludes non-public properties (matching System.Text.Json).
+    /// </summary>
+    [Test]
+    public void Execute_ExcludesNonPublicProperties()
+    {
+        var outputPath = TempFile("schema.json");
+        var sut = CreateTask(outputPath);
+
+        sut.Execute();
+
+        var properties = ParseSchema(outputPath)["properties"]!.AsObject();
+        Assert.That(properties.ContainsKey("InternalValue"), Is.False);
+    }
+
+    /// <summary>
     /// The generated schema excludes obsolete properties by default.
     /// </summary>
     [Test]
@@ -311,6 +326,11 @@ public class JsonSchemaGenerateTests
         /// </summary>
         [Obsolete("This property is obsolete.")]
         public string ObsoleteValue { get; set; } = string.Empty;
+
+        /// <summary>
+        /// An internal property (should be excluded from schema, matching System.Text.Json).
+        /// </summary>
+        internal string InternalValue { get; set; } = string.Empty;
 
         /// <summary>
         /// An enum property (should use string values via JsonStringEnumConverter).
