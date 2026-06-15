@@ -388,10 +388,11 @@ public class JsonSchemaAddReferencesTests
     }
 
     /// <summary>
-    /// A target path whose segment resolves to a non-object value fails with a descriptive error.
+    /// A target path whose segment resolves to a non-object value logs an error and returns false,
+    /// leaving the existing schema file untouched.
     /// </summary>
     [Test]
-    public void TargetPath_ThroughNonObject_Throws()
+    public void TargetPath_ThroughNonObject_LogsErrorAndReturnsFalse()
     {
         var path = TempFile();
         var existing = new JsonObject
@@ -399,37 +400,72 @@ public class JsonSchemaAddReferencesTests
             ["$schema"] = "http://json-schema.org/draft-04/schema#",
             ["properties"] = "not-an-object"
         };
-        File.WriteAllText(path, existing.ToJsonString(new JsonSerializerOptions { WriteIndented = true }));
+        var original = existing.ToJsonString(new JsonSerializerOptions { WriteIndented = true });
+        File.WriteAllText(path, original);
 
+        var engine = new FakeBuildEngine();
         var sut = new JsonSchemaAddReferences
         {
+            BuildEngine = engine,
             JsonSchemaFile = path,
             TargetPath = "$.properties.extensions",
             References = new ITaskItem[] { new FakeTaskItem("acme.json#") }
         };
 
-        Assert.That(() => sut.Execute(), Throws.InstanceOf<InvalidOperationException>());
+        Assert.That(sut.Execute(), Is.False);
+        Assert.That(engine.Errors, Has.Count.EqualTo(1));
+        // The existing schema file is left untouched when the target path is invalid
+        Assert.That(File.ReadAllText(path), Is.EqualTo(original));
     }
 
     /// <summary>
-    /// Array indices are not supported in a target path.
+    /// Array indices are not supported in a target path: the task logs an error and returns false.
     /// </summary>
     [Test]
-    public void TargetPath_WithArrayIndex_Throws()
+    public void TargetPath_WithArrayIndex_LogsErrorAndReturnsFalse()
     {
         var path = TempFile();
+        var engine = new FakeBuildEngine();
         var sut = new JsonSchemaAddReferences
         {
+            BuildEngine = engine,
             JsonSchemaFile = path,
             TargetPath = "$.properties.extensions[0]",
             References = new ITaskItem[] { new FakeTaskItem("acme.json#") }
         };
 
-        Assert.That(() => sut.Execute(), Throws.InstanceOf<InvalidOperationException>());
+        Assert.That(sut.Execute(), Is.False);
+        Assert.That(engine.Errors, Has.Count.EqualTo(1));
     }
 
     private string TempFile(string name = "schema.json")
         => Path.Combine(_tempDir, name);
+
+    /// <summary>
+    /// Lightweight stub for <see cref="IBuildEngine"/> that captures logged errors.
+    /// </summary>
+    private sealed class FakeBuildEngine : IBuildEngine
+    {
+        public List<string> Errors { get; } = new();
+
+        public bool ContinueOnError => false;
+
+        public int LineNumberOfTaskNode => 0;
+
+        public int ColumnNumberOfTaskNode => 0;
+
+        public string ProjectFileOfTaskNode => string.Empty;
+
+        public bool BuildProjectFile(string projectFileName, string[] targetNames, IDictionary globalProperties, IDictionary targetOutputs) => true;
+
+        public void LogCustomEvent(CustomBuildEventArgs e) { }
+
+        public void LogErrorEvent(BuildErrorEventArgs e) => Errors.Add(e.Message);
+
+        public void LogMessageEvent(BuildMessageEventArgs e) { }
+
+        public void LogWarningEvent(BuildWarningEventArgs e) { }
+    }
 
     /// <summary>
     /// Lightweight stub for <see cref="ITaskItem"/> used in tests.

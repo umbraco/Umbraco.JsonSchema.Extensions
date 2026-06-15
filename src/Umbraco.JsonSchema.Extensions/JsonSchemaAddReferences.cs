@@ -74,17 +74,27 @@ public class JsonSchemaAddReferences : Microsoft.Build.Utilities.Task
                 CommentHandling = JsonCommentHandling.Skip,
                 AllowTrailingCommas = true
             })!;
-
-            // Truncate file
-            fs.SetLength(0);
-            fs.Position = 0;
         }
 
-        // Merge the references into the object at the target path (the root when no path is specified)
-        JsonObject target = ResolveOrCreateObject(schema, TargetPath);
+        // Resolve the object at the target path (the root when no path is specified) before modifying the file, so an
+        // invalid path fails the build cleanly without truncating the existing schema
+        JsonObject target;
+        try
+        {
+            target = ResolveOrCreateObject(schema, TargetPath);
+        }
+        catch (InvalidOperationException ex)
+        {
+            Log.LogError("Invalid TargetPath '{0}' for JSON schema file '{1}': {2}", TargetPath, JsonSchemaFile, ex.Message);
+            return false;
+        }
+
+        // Merge the references into the resolved target object
         MergeObjects(target, CreateReferences(References));
 
-        // Write schema file
+        // Truncate and (re)write the schema file
+        fs.SetLength(0);
+        fs.Position = 0;
         using (var writer = new Utf8JsonWriter(fs, new JsonWriterOptions { Indented = true }))
         {
             schema.WriteTo(writer);
