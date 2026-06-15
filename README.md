@@ -4,7 +4,7 @@ Extensions for Umbraco to add JSON schema references and update JSON properties 
 
 ## JsonSchemaAddReferences
 
-Adds references to a JSON schema file.
+Adds references to a JSON schema file as an `allOf` array. Each reference may carry a `Weight` metadata value to control its order (ascending, default `0`). The references are merged using union semantics, so re-running the task does not create duplicates.
 
 ```xml
 <Target Name="AddJsonSchemaReferences" BeforeTargets="Build">
@@ -15,6 +15,29 @@ Adds references to a JSON schema file.
   <JsonSchemaAddReferences JsonSchemaFile="$(MSBuildProjectDirectory)\appsettings-schema.json" References="@(_References)" />
 </Target>
 ```
+
+| Parameter | Required | Description |
+|-----------|----------|-------------|
+| `JsonSchemaFile` | Yes | Path to the JSON schema file to create or update |
+| `References` | Yes | The references to add as `$ref` entries (the `Weight` metadata orders them) |
+| `TargetPath` | No | JSON path to the object the `allOf` is added to (default: the schema root) |
+
+By default the `allOf` is added at the root, so every reference constrains the whole schema. Set `TargetPath` to compose references into a nested location instead — for example to only extend a single property while leaving the rest of the schema owned by a base reference:
+
+```xml
+<Target Name="AddPackageSchemaReferences" BeforeTargets="Build">
+  <ItemGroup>
+    <!-- Base schema owns the top-level shape -->
+    <_BaseReference Include="umbraco-package-schema.Umbraco.Cms.json#" />
+    <!-- Package fragments only extend the extensions array items -->
+    <_ExtensionReference Include="acme.umbraco-package-schema.json#/properties/extensions/items" />
+  </ItemGroup>
+  <JsonSchemaAddReferences JsonSchemaFile="$(MSBuildProjectDirectory)\umbraco-package-schema.json" References="@(_BaseReference)" />
+  <JsonSchemaAddReferences JsonSchemaFile="$(MSBuildProjectDirectory)\umbraco-package-schema.json" References="@(_ExtensionReference)" TargetPath="$.properties.extensions.items" />
+</Target>
+```
+
+`TargetPath` supports object property segments using dot or bracket notation, with an optional leading `$` (e.g. `$.properties.extensions.items` or `properties['extensions'].items`). Intermediate objects are created when they do not exist; array indices are not supported.
 
 ## JsonPathUpdateValue
 

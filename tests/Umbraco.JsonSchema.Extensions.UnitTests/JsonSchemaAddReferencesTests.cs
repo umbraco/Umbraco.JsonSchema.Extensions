@@ -258,6 +258,176 @@ public class JsonSchemaAddReferencesTests
         Assert.That(content, Does.Match(@"^\s*\{"));
     }
 
+    /// <summary>
+    /// A target path creates the intermediate objects and places the allOf at the nested location,
+    /// leaving the schema root untouched.
+    /// </summary>
+    [Test]
+    public void TargetPath_CreatesNestedObjectsAndAllOf()
+    {
+        var path = TempFile();
+        var sut = new JsonSchemaAddReferences
+        {
+            JsonSchemaFile = path,
+            TargetPath = "$.properties.extensions.items",
+            References = new ITaskItem[] { new FakeTaskItem("acme.json#/properties/extensions/items") }
+        };
+
+        var result = sut.Execute();
+        Assert.That(result, Is.True);
+
+        JsonObject schema = JsonNode.Parse(File.ReadAllText(path))!.AsObject();
+        Assert.That(schema.ContainsKey("allOf"), Is.False, "allOf must not be added at the root");
+
+        JsonArray allOf = schema["properties"]!["extensions"]!["items"]!["allOf"]!.AsArray();
+        Assert.That(allOf.Count, Is.EqualTo(1));
+        Assert.That(allOf[0]!["$ref"]!.GetValue<string>(), Is.EqualTo("acme.json#/properties/extensions/items"));
+    }
+
+    /// <summary>
+    /// References merged at a target path that already has an allOf use union semantics (no duplicates),
+    /// just like at the root.
+    /// </summary>
+    [Test]
+    public void TargetPath_MergesIntoExistingNestedAllOf_WithoutDuplicates()
+    {
+        var path = TempFile();
+        var existing = new JsonObject
+        {
+            ["$schema"] = "http://json-schema.org/draft-04/schema#",
+            ["properties"] = new JsonObject
+            {
+                ["extensions"] = new JsonObject
+                {
+                    ["items"] = new JsonObject
+                    {
+                        ["allOf"] = new JsonArray(new JsonObject { ["$ref"] = "existing.json#/properties/extensions/items" })
+                    }
+                }
+            }
+        };
+        File.WriteAllText(path, existing.ToJsonString(new JsonSerializerOptions { WriteIndented = true }));
+
+        var sut = new JsonSchemaAddReferences
+        {
+            JsonSchemaFile = path,
+            TargetPath = "$.properties.extensions.items",
+            References = new ITaskItem[]
+            {
+                new FakeTaskItem("existing.json#/properties/extensions/items"), // duplicate
+                new FakeTaskItem("new.json#/properties/extensions/items")        // new
+            }
+        };
+
+        var result = sut.Execute();
+        Assert.That(result, Is.True);
+
+        JsonArray allOf = JsonNode.Parse(File.ReadAllText(path))!["properties"]!["extensions"]!["items"]!["allOf"]!.AsArray();
+        Assert.That(allOf.Count, Is.EqualTo(2));
+        Assert.That(allOf[0]!["$ref"]!.GetValue<string>(), Is.EqualTo("existing.json#/properties/extensions/items"));
+        Assert.That(allOf[1]!["$ref"]!.GetValue<string>(), Is.EqualTo("new.json#/properties/extensions/items"));
+    }
+
+    /// <summary>
+    /// Existing siblings on the path and at the root are preserved when adding references at a target path.
+    /// </summary>
+    [Test]
+    public void TargetPath_PreservesExistingSiblings()
+    {
+        var path = TempFile();
+        var existing = new JsonObject
+        {
+            ["$schema"] = "http://json-schema.org/draft-04/schema#",
+            ["allOf"] = new JsonArray(new JsonObject { ["$ref"] = "base.json#" }),
+            ["properties"] = new JsonObject
+            {
+                ["extensions"] = new JsonObject
+                {
+                    ["type"] = "array"
+                }
+            }
+        };
+        File.WriteAllText(path, existing.ToJsonString(new JsonSerializerOptions { WriteIndented = true }));
+
+        var sut = new JsonSchemaAddReferences
+        {
+            JsonSchemaFile = path,
+            TargetPath = "$.properties.extensions.items",
+            References = new ITaskItem[] { new FakeTaskItem("acme.json#/properties/extensions/items") }
+        };
+
+        Assert.That(sut.Execute(), Is.True);
+
+        JsonObject schema = JsonNode.Parse(File.ReadAllText(path))!.AsObject();
+        // Root allOf (the base reference) is preserved
+        Assert.That(schema["allOf"]!.AsArray()[0]!["$ref"]!.GetValue<string>(), Is.EqualTo("base.json#"));
+        // Existing sibling on the extensions object is preserved
+        Assert.That(schema["properties"]!["extensions"]!["type"]!.GetValue<string>(), Is.EqualTo("array"));
+        // New allOf added under items
+        Assert.That(schema["properties"]!["extensions"]!["items"]!["allOf"]!.AsArray().Count, Is.EqualTo(1));
+    }
+
+    /// <summary>
+    /// An empty target path behaves like the existing root behavior.
+    /// </summary>
+    [Test]
+    public void EmptyTargetPath_AddsAllOfAtRoot()
+    {
+        var path = TempFile();
+        var sut = new JsonSchemaAddReferences
+        {
+            JsonSchemaFile = path,
+            TargetPath = string.Empty,
+            References = new ITaskItem[] { new FakeTaskItem("ref1.json") }
+        };
+
+        Assert.That(sut.Execute(), Is.True);
+
+        JsonObject schema = JsonNode.Parse(File.ReadAllText(path))!.AsObject();
+        Assert.That(schema["allOf"]!.AsArray()[0]!["$ref"]!.GetValue<string>(), Is.EqualTo("ref1.json"));
+    }
+
+    /// <summary>
+    /// A target path whose segment resolves to a non-object value fails with a descriptive error.
+    /// </summary>
+    [Test]
+    public void TargetPath_ThroughNonObject_Throws()
+    {
+        var path = TempFile();
+        var existing = new JsonObject
+        {
+            ["$schema"] = "http://json-schema.org/draft-04/schema#",
+            ["properties"] = "not-an-object"
+        };
+        File.WriteAllText(path, existing.ToJsonString(new JsonSerializerOptions { WriteIndented = true }));
+
+        var sut = new JsonSchemaAddReferences
+        {
+            JsonSchemaFile = path,
+            TargetPath = "$.properties.extensions",
+            References = new ITaskItem[] { new FakeTaskItem("acme.json#") }
+        };
+
+        Assert.That(() => sut.Execute(), Throws.InstanceOf<InvalidOperationException>());
+    }
+
+    /// <summary>
+    /// Array indices are not supported in a target path.
+    /// </summary>
+    [Test]
+    public void TargetPath_WithArrayIndex_Throws()
+    {
+        var path = TempFile();
+        var sut = new JsonSchemaAddReferences
+        {
+            JsonSchemaFile = path,
+            TargetPath = "$.properties.extensions[0]",
+            References = new ITaskItem[] { new FakeTaskItem("acme.json#") }
+        };
+
+        Assert.That(() => sut.Execute(), Throws.InstanceOf<InvalidOperationException>());
+    }
+
     private string TempFile(string name = "schema.json")
         => Path.Combine(_tempDir, name);
 
