@@ -9,8 +9,8 @@
     <GlobalPackageReference Include="Umbraco.GitVersioning.Extensions" Version="0.2.0" />
   </ItemGroup>
   <ItemGroup>
-    <PackageVersion Include="Microsoft.Build.Utilities.Core" Version="17.11.48" />
-    <PackageVersion Include="NJsonSchema" Version="11.5.2" />
-    <PackageVersion Include="System.Text.Json" Version="10.0.5" />
+    <PackageVersion Include="Microsoft.Build.Utilities.Core" Version="17.14.28" />
+    <PackageVersion Include="NJsonSchema" Version="11.6.1" />
+    <PackageVersion Include="System.Text.Json" Version="10.0.9" />
   </ItemGroup>
 </Project>
