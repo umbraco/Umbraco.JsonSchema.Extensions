@@ -438,6 +438,97 @@ public class JsonSchemaAddReferencesTests
         Assert.That(engine.Errors, Has.Count.EqualTo(1));
     }
 
+    /// <summary>
+    /// References default to being combined under <c>allOf</c>.
+    /// </summary>
+    [Test]
+    public void DefaultCombinator_UsesAllOf()
+    {
+        var path = TempFile();
+        var sut = new JsonSchemaAddReferences
+        {
+            JsonSchemaFile = path,
+            References = new ITaskItem[] { new FakeTaskItem("ref1.json") }
+        };
+
+        Assert.That(sut.Execute(), Is.True);
+
+        JsonObject schema = JsonNode.Parse(File.ReadAllText(path))!.AsObject();
+        Assert.That(schema.ContainsKey("allOf"), Is.True);
+        Assert.That(schema.ContainsKey("anyOf"), Is.False);
+    }
+
+    /// <summary>
+    /// Setting <see cref="JsonSchemaAddReferences.Combinator"/> to <c>anyOf</c> groups the references under <c>anyOf</c>.
+    /// </summary>
+    [Test]
+    public void Combinator_AnyOf_GroupsUnderAnyOf()
+    {
+        var path = TempFile();
+        var sut = new JsonSchemaAddReferences
+        {
+            JsonSchemaFile = path,
+            Combinator = "anyOf",
+            References = new ITaskItem[]
+            {
+                new FakeTaskItem("first.json", weight: "10"),
+                new FakeTaskItem("second.json", weight: "20")
+            }
+        };
+
+        Assert.That(sut.Execute(), Is.True);
+
+        JsonObject schema = JsonNode.Parse(File.ReadAllText(path))!.AsObject();
+        Assert.That(schema.ContainsKey("allOf"), Is.False);
+        JsonArray anyOf = schema["anyOf"]!.AsArray();
+        Assert.That(anyOf.Count, Is.EqualTo(2));
+        Assert.That(anyOf[0]!["$ref"]!.GetValue<string>(), Is.EqualTo("first.json"));
+        Assert.That(anyOf[1]!["$ref"]!.GetValue<string>(), Is.EqualTo("second.json"));
+    }
+
+    /// <summary>
+    /// The combinator also applies at a target path.
+    /// </summary>
+    [Test]
+    public void Combinator_AnyOf_AtTargetPath()
+    {
+        var path = TempFile();
+        var sut = new JsonSchemaAddReferences
+        {
+            JsonSchemaFile = path,
+            Combinator = "anyOf",
+            TargetPath = "$.properties.extensions.items",
+            References = new ITaskItem[] { new FakeTaskItem("acme.json#") }
+        };
+
+        Assert.That(sut.Execute(), Is.True);
+
+        JsonArray anyOf = JsonNode.Parse(File.ReadAllText(path))!["properties"]!["extensions"]!["items"]!["anyOf"]!.AsArray();
+        Assert.That(anyOf.Count, Is.EqualTo(1));
+        Assert.That(anyOf[0]!["$ref"]!.GetValue<string>(), Is.EqualTo("acme.json#"));
+    }
+
+    /// <summary>
+    /// An unsupported combinator logs an error and returns false, leaving the schema file untouched.
+    /// </summary>
+    [Test]
+    public void InvalidCombinator_LogsErrorAndReturnsFalse()
+    {
+        var path = TempFile();
+        var engine = new FakeBuildEngine();
+        var sut = new JsonSchemaAddReferences
+        {
+            BuildEngine = engine,
+            JsonSchemaFile = path,
+            Combinator = "someOf",
+            References = new ITaskItem[] { new FakeTaskItem("ref1.json") }
+        };
+
+        Assert.That(sut.Execute(), Is.False);
+        Assert.That(engine.Errors, Has.Count.EqualTo(1));
+        Assert.That(path, Does.Not.Exist);
+    }
+
     private string TempFile(string name = "schema.json")
         => Path.Combine(_tempDir, name);
 
