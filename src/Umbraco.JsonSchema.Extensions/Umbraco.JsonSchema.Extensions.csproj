@@ -1,7 +1,7 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <TargetFramework />
-    <TargetFrameworks>net8.0;netstandard2.0</TargetFrameworks>
+    <TargetFrameworks>net10.0;netstandard2.0</TargetFrameworks>
     <Title>Umbraco JSON schema extensions</Title>
     <Description>MSBuild tasks for Umbraco to add JSON schema references, update JSON properties, and generate JSON schemas from .NET types.</Description>
   </PropertyGroup>
@@ -12,12 +12,12 @@
 
   <ItemGroup>
     <PackageReference Include="Microsoft.Build.Utilities.Core" PrivateAssets="all" ExcludeAssets="runtime" />
-    <PackageReference Include="NJsonSchema" PrivateAssets="all" Condition="'$(TargetFramework)' == 'net8.0'" />
+    <PackageReference Include="NJsonSchema" PrivateAssets="all" Condition="'$(TargetFramework)' == 'net10.0'" />
     <PackageReference Include="System.Text.Json" PrivateAssets="all" Condition="'$(TargetFramework)' == 'netstandard2.0'" />
   </ItemGroup>
 
-  <!-- JsonSchemaGenerate is a net8.0 only task -->
-  <ItemGroup Condition="'$(TargetFramework)' != 'net8.0'">
+  <!-- JsonSchemaGenerate is a net10.0 only task -->
+  <ItemGroup Condition="'$(TargetFramework)' != 'net10.0'">
     <Compile Remove="JsonSchemaGenerate\**" />
   </ItemGroup>
 

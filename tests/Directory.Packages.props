@@ -2,7 +2,6 @@
 <Project>
   <!-- Enable multi-level merging -->
   <Import Project="$([MSBuild]::GetPathOfFileAbove(Directory.Packages.props, $(MSBuildThisFileDirectory)..))" />
-
   <ItemGroup>
     <PackageVersion Include="Microsoft.Testing.Extensions.TrxReport" Version="2.2.3" />
     <PackageVersion Include="NUnit" Version="4.6.1" />
