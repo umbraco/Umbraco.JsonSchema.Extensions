@@ -537,7 +537,7 @@ public class JsonSchemaAddReferencesTests
     /// </summary>
     private sealed class FakeBuildEngine : IBuildEngine
     {
-        public List<string> Errors { get; } = new();
+        public List<string?> Errors { get; } = new();
 
         public bool ContinueOnError => false;
 
