@@ -4,7 +4,7 @@ Extensions for Umbraco to add JSON schema references and update JSON properties 
 
 ## JsonSchemaAddReferences
 
-Adds references to a JSON schema file as an `allOf` array. Each reference may carry a `Weight` metadata value to control its order (ascending, default `0`). The references are merged using union semantics, so re-running the task does not create duplicates.
+Adds references to a JSON schema file, grouped under a combining keyword (`allOf` by default). Each reference may carry a `Weight` metadata value to control its order (ascending, default `0`). The references are merged using union semantics, so re-running the task does not create duplicates.
 
 ```xml
 <Target Name="AddJsonSchemaReferences" BeforeTargets="Build">
@@ -20,7 +20,8 @@ Adds references to a JSON schema file as an `allOf` array. Each reference may ca
 |-----------|----------|-------------|
 | `JsonSchemaFile` | Yes | Path to the JSON schema file to create or update |
 | `References` | Yes | The references to add as `$ref` entries (the `Weight` metadata orders them) |
-| `TargetPath` | No | JSON path to the object the `allOf` is added to (default: the schema root) |
+| `TargetPath` | No | JSON path to the object the references are added to (default: the schema root) |
+| `Combinator` | No | The JSON Schema keyword the references are grouped under: `allOf` (default), `anyOf` or `oneOf` |
 
 By default the `allOf` is added at the root, so every reference constrains the whole schema. Set `TargetPath` to compose references into a nested location instead — for example to only extend a single property while leaving the rest of the schema owned by a base reference:
 
@@ -38,6 +39,12 @@ By default the `allOf` is added at the root, so every reference constrains the w
 ```
 
 `TargetPath` supports object property segments using dot or bracket notation, with an optional leading `$` (e.g. `$.properties.extensions.items` or `properties['extensions'].items`). Intermediate objects are created when they do not exist; array indices are not supported.
+
+By default references are combined with `allOf` (intersection — every referenced schema must match). Set `Combinator` to `anyOf` or `oneOf` to combine them as a union instead — useful when the target is itself a union (e.g. the items of a discriminated array), so each referenced schema only needs to match its own entries rather than all of them:
+
+```xml
+<JsonSchemaAddReferences JsonSchemaFile="$(MSBuildProjectDirectory)\umbraco-package-schema.json" References="@(_ExtensionReferences)" TargetPath="$.properties.extensions.items" Combinator="anyOf" />
+```
 
 ## JsonPathUpdateValue
 

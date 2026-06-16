@@ -34,7 +34,7 @@ public class JsonSchemaAddReferences : Microsoft.Build.Utilities.Task
     public ITaskItem[] References { get; set; } = Array.Empty<ITaskItem>();
 
     /// <summary>
-    /// Gets or sets the JSON path to the object the <c>allOf</c> references are added to.
+    /// Gets or sets the JSON path to the object the references are added to.
     /// </summary>
     /// <value>
     /// The JSON path (e.g. <c>$.properties.extensions.items</c>) to the object the references are added to. Defaults to
@@ -47,6 +47,15 @@ public class JsonSchemaAddReferences : Microsoft.Build.Utilities.Task
     /// </remarks>
     public string TargetPath { get; set; } = string.Empty;
 
+    /// <summary>
+    /// Gets or sets the JSON Schema keyword the references are combined under.
+    /// </summary>
+    /// <value>
+    /// The combining keyword: <c>allOf</c> (default), <c>anyOf</c> or <c>oneOf</c>. <c>allOf</c> requires every
+    /// referenced schema to match (intersection); <c>anyOf</c>/<c>oneOf</c> require any/exactly one to match (union).
+    /// </value>
+    public string Combinator { get; set; } = "allOf";
+
     /// <inheritdoc />
     public override bool Execute()
     {
@@ -54,6 +63,12 @@ public class JsonSchemaAddReferences : Microsoft.Build.Utilities.Task
         {
             // No references to add
             return true;
+        }
+
+        if (Combinator is not ("allOf" or "anyOf" or "oneOf"))
+        {
+            Log.LogError("Invalid Combinator '{0}' for JSON schema file '{1}': expected 'allOf', 'anyOf' or 'oneOf'.", Combinator, JsonSchemaFile);
+            return false;
         }
 
         using FileStream fs = File.Open(JsonSchemaFile, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None);
@@ -90,7 +105,7 @@ public class JsonSchemaAddReferences : Microsoft.Build.Utilities.Task
         }
 
         // Merge the references into the resolved target object
-        MergeObjects(target, CreateReferences(References));
+        MergeObjects(target, CreateReferences(References, Combinator));
 
         // Truncate and (re)write the schema file
         fs.SetLength(0);
@@ -103,10 +118,10 @@ public class JsonSchemaAddReferences : Microsoft.Build.Utilities.Task
         return true;
     }
 
-    private static JsonObject CreateReferences(ITaskItem[] references)
+    private static JsonObject CreateReferences(ITaskItem[] references, string combinator)
         => new JsonObject
         {
-            ["allOf"] = new JsonArray(references
+            [combinator] = new JsonArray(references
                 .OrderBy(x => int.TryParse(x.GetMetadata("Weight"), NumberStyles.Integer, CultureInfo.InvariantCulture, out var order) ? order : 0)
                 .Select(x => (JsonNode)new JsonObject
                 {
