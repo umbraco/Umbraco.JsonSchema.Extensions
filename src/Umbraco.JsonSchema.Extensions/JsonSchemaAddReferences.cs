@@ -34,7 +34,7 @@ public class JsonSchemaAddReferences : Microsoft.Build.Utilities.Task
     public ITaskItem[] References { get; set; } = Array.Empty<ITaskItem>();
 
     /// <summary>
-    /// Gets or sets the JSON path to the object the <c>allOf</c> references are added to.
+    /// Gets or sets the JSON path to the object the references are added to.
     /// </summary>
     /// <value>
     /// The JSON path (e.g. <c>$.properties.extensions.items</c>) to the object the references are added to. Defaults to
