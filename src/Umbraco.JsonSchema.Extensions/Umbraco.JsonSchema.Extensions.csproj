@@ -16,9 +16,10 @@
     <PackageReference Include="System.Text.Json" PrivateAssets="all" Condition="'$(TargetFramework)' == 'netstandard2.0'" />
   </ItemGroup>
 
-  <!-- JsonSchemaGenerate is a net10.0 only task -->
+  <!-- JsonSchemaGenerate is a net10.0 only task (other targets only include the task itself, which logs an error) -->
   <ItemGroup Condition="'$(TargetFramework)' != 'net10.0'">
     <Compile Remove="JsonSchemaGenerate\**" />
+    <Compile Include="JsonSchemaGenerate\JsonSchemaGenerate.cs" />
   </ItemGroup>
 
   <ItemGroup>

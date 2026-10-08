@@ -1,6 +1,8 @@
 # Umbraco.JsonSchema.Extensions
 
-Extensions for Umbraco to add JSON schema references and update JSON properties using MSBuild tasks.
+MSBuild tasks for Umbraco to add JSON schema references, update JSON properties, and generate JSON schemas from .NET types.
+
+> **Note:** When building with the .NET 10 SDK or later (i.e. `dotnet build`), all tasks run from the `net10.0` task assembly. With older .NET SDKs or .NET Framework MSBuild (i.e. Visual Studio or `msbuild.exe`), `JsonPathUpdateValue` and `JsonSchemaAddReferences` fall back to the `netstandard2.0` task assembly, but `JsonSchemaGenerate` is only available on .NET 10 (see below).
 
 ## JsonSchemaAddReferences
 
@@ -63,7 +65,7 @@ Updates the value of a property in a JSON file using a JSON path expression.
 
 Generates a JSON schema from a C# type in an assembly. XML documentation comments are included as `description` fields in the generated schema, providing IntelliSense tooltips in editors.
 
-> **Note:** This task requires .NET Core MSBuild (i.e. `dotnet build`) or Visual Studio 2026+ (MSBuild 18.0+), which supports running .NET Core tasks via the TaskHost. It is not available when building with Visual Studio 2022 or earlier.
+> **Note:** This task runs on .NET 10, so it requires the .NET 10 SDK (i.e. `dotnet build`) or Visual Studio 2026+ (MSBuild 18.0+), which supports running .NET tasks via the TaskHost. It is not available when building with Visual Studio 2022 or earlier.
 
 > **Note:** When executing this task from a class library (`Microsoft.NET.Sdk` with `<OutputType>Library</OutputType>`, the default) and the type being generated depends on assemblies from referenced NuGet packages (e.g. `Umbraco.Core`), set `<CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>` in the project file. This ensures the dependency DLLs are copied next to the target assembly so they can be resolved at build time. This is already the default for executable projects, including the Web (`Microsoft.NET.Sdk.Web`), Worker (`Microsoft.NET.Sdk.Worker`), and Blazor WebAssembly (`Microsoft.NET.Sdk.BlazorWebAssembly`) SDKs.
 

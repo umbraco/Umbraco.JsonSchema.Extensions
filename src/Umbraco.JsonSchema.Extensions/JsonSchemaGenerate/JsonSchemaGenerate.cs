@@ -12,28 +12,34 @@ public sealed class JsonSchemaGenerate : Microsoft.Build.Utilities.Task
     /// Gets or sets the path to the assembly file containing the type.
     /// </summary>
     [Required]
-    public required string AssemblyPath { get; set; }
+    public string AssemblyPath { get; set; } = string.Empty;
 
     /// <summary>
     /// Gets or sets the fully qualified type name to generate the schema for.
     /// </summary>
     [Required]
-    public required string TypeName { get; set; }
+    public string TypeName { get; set; } = string.Empty;
 
     /// <summary>
     /// Gets or sets the output file path for the generated JSON schema.
     /// </summary>
     [Required]
-    public required string OutputPath { get; set; }
+    public string OutputPath { get; set; } = string.Empty;
 
     /// <summary>
-    /// Gets or sets a value indicating whether to include properties marked with <see cref="System.ObsoleteAttribute" />.
+    /// Gets or sets a value indicating whether to include properties marked with <see cref="T:System.ObsoleteAttribute" />.
     /// </summary>
     public bool IncludeObsoleteProperties { get; set; }
 
     /// <inheritdoc />
     public override bool Execute()
     {
+#if NETSTANDARD2_0
+        // Only registered on MSBuild versions that can't run the net10.0 task, so fail with an actionable error instead of an assembly load failure
+        Log.LogError("The JsonSchemaGenerate task requires .NET 10: build using the .NET 10 SDK or later (dotnet build) or Visual Studio 2026+ (MSBuild 18.0+).");
+
+        return false;
+#else
         try
         {
             var assemblyFile = Path.GetFullPath(AssemblyPath);
@@ -65,5 +71,6 @@ public sealed class JsonSchemaGenerate : Microsoft.Build.Utilities.Task
 
             return false;
         }
+#endif
     }
 }
