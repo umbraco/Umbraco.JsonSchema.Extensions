@@ -259,6 +259,110 @@ public class JsonSchemaAddReferencesTests
     }
 
     /// <summary>
+    /// When the existing schema already contains all references, the file is not rewritten.
+    /// </summary>
+    [Test]
+    public void ExistingSchema_AllReferencesPresent_DoesNotRewriteFile()
+    {
+        var original = """{"$schema":"http://json-schema.org/draft-04/schema#","allOf":[{"$ref":"ref1.json"},{"$ref":"ref2.json"}]}""";
+        var path = TempFile();
+        File.WriteAllText(path, original);
+
+        var sut = new JsonSchemaAddReferences
+        {
+            JsonSchemaFile = path,
+            References = new ITaskItem[]
+            {
+                new FakeTaskItem("ref2.json"),
+                new FakeTaskItem("ref1.json")
+            }
+        };
+
+        var result = sut.Execute();
+        Assert.That(result, Is.True);
+
+        Assert.That(File.ReadAllText(path), Is.EqualTo(original));
+    }
+
+    /// <summary>
+    /// When the existing schema already contains all references at the target path, the file is not rewritten.
+    /// </summary>
+    [Test]
+    public void TargetPath_AllReferencesPresent_DoesNotRewriteFile()
+    {
+        var original = """{"properties":{"extensions":{"items":{"anyOf":[{"$ref":"ref.json#/properties/extensions/items"}]}}}}""";
+        var path = TempFile();
+        File.WriteAllText(path, original);
+
+        var sut = new JsonSchemaAddReferences
+        {
+            JsonSchemaFile = path,
+            TargetPath = "$.properties.extensions.items",
+            Combinator = "anyOf",
+            References = new ITaskItem[] { new FakeTaskItem("ref.json#/properties/extensions/items") }
+        };
+
+        var result = sut.Execute();
+        Assert.That(result, Is.True);
+
+        Assert.That(File.ReadAllText(path), Is.EqualTo(original));
+    }
+
+    /// <summary>
+    /// When the existing schema already contains all references, comments and trailing commas are preserved
+    /// (as the file is not rewritten).
+    /// </summary>
+    [Test]
+    public void ExistingSchema_AllReferencesPresent_PreservesCommentsAndTrailingCommas()
+    {
+        var original = """
+            {
+                // This is a comment
+                "$schema": "http://json-schema.org/draft-04/schema#",
+                "allOf": [
+                    { "$ref": "existing.json" },
+                ]
+            }
+            """;
+        var path = TempFile();
+        File.WriteAllText(path, original);
+
+        var sut = new JsonSchemaAddReferences
+        {
+            JsonSchemaFile = path,
+            References = new ITaskItem[] { new FakeTaskItem("existing.json") }
+        };
+
+        var result = sut.Execute();
+        Assert.That(result, Is.True);
+
+        Assert.That(File.ReadAllText(path), Is.EqualTo(original));
+    }
+
+    /// <summary>
+    /// Running the task again with the same references does not write the file again.
+    /// </summary>
+    [Test]
+    public void SecondRun_WithSameReferences_DoesNotWriteFile()
+    {
+        var path = TempFile();
+        var sut = new JsonSchemaAddReferences
+        {
+            JsonSchemaFile = path,
+            References = new ITaskItem[] { new FakeTaskItem("ref.json") }
+        };
+
+        Assert.That(sut.Execute(), Is.True);
+
+        var lastWriteTime = new DateTime(2000, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+        File.SetLastWriteTimeUtc(path, lastWriteTime);
+
+        Assert.That(sut.Execute(), Is.True);
+
+        Assert.That(File.GetLastWriteTimeUtc(path), Is.EqualTo(lastWriteTime));
+    }
+
+    /// <summary>
     /// A target path creates the intermediate objects and places the allOf at the nested location,
     /// leaving the schema root untouched.
     /// </summary>

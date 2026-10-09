@@ -6,7 +6,7 @@ MSBuild tasks for Umbraco to add JSON schema references, update JSON properties,
 
 ## JsonSchemaAddReferences
 
-Adds references to a JSON schema file, grouped under a combining keyword (`allOf` by default). Each reference may carry a `Weight` metadata value to control its order (ascending, default `0`). The references are merged using union semantics, so re-running the task does not create duplicates.
+Adds references to a JSON schema file, grouped under a combining keyword (`allOf` by default). Each reference may carry a `Weight` metadata value to control its order (ascending, default `0`). The references are merged using union semantics, so re-running the task does not create duplicates. An existing file is only written when references are added, so the task can run on every build without touching an up-to-date file.
 
 ```xml
 <Target Name="AddJsonSchemaReferences" BeforeTargets="Build">
