@@ -74,23 +74,27 @@ public class JsonPathUpdateValue : Microsoft.Build.Utilities.Task
                 }
             }
 
-            // Replace value at the last segment
+            // Replace value at the last segment (leaving the file untouched when it doesn't exist or is unchanged)
             PathSegment lastSegment = segments[segments.Count - 1];
             var newValue = JsonNode.Parse(Value);
 
             if (lastSegment.IsArrayIndex && parent is JsonArray arr)
             {
-                if (lastSegment.ArrayIndex < arr.Count)
+                if (lastSegment.ArrayIndex >= arr.Count || JsonNode.DeepEquals(arr[lastSegment.ArrayIndex], newValue))
                 {
-                    arr[lastSegment.ArrayIndex] = newValue;
+                    return true;
                 }
+
+                arr[lastSegment.ArrayIndex] = newValue;
             }
             else if (lastSegment.PropertyName is not null && parent is JsonObject obj)
             {
-                if (obj.ContainsKey(lastSegment.PropertyName))
+                if (!obj.TryGetPropertyValue(lastSegment.PropertyName, out JsonNode? currentValue) || JsonNode.DeepEquals(currentValue, newValue))
                 {
-                    obj[lastSegment.PropertyName] = newValue;
+                    return true;
                 }
+
+                obj[lastSegment.PropertyName] = newValue;
             }
             else
             {

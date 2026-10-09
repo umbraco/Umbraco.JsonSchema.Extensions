@@ -153,6 +153,138 @@ public class JsonPathUpdateValueTests
     }
 
     /// <summary>
+    /// When the last path segment does not exist in the JSON, the file is not rewritten.
+    /// </summary>
+    [Test]
+    public void NonExistentProperty_DoesNotRewriteFile()
+    {
+        var original = """{ "foo": "bar" }""";
+        var path = WriteJsonFile(original);
+
+        var sut = new JsonPathUpdateValue
+        {
+            JsonFile = path,
+            Path = "$.missing",
+            Value = "\"value\""
+        };
+
+        var result = sut.Execute();
+        Assert.That(result, Is.True);
+
+        Assert.That(File.ReadAllText(path), Is.EqualTo(original));
+    }
+
+    /// <summary>
+    /// When the property already has the value, the file is not rewritten.
+    /// </summary>
+    [Test]
+    public void UnchangedValue_DoesNotRewriteFile()
+    {
+        var original = """{ "foo": "bar" }""";
+        var path = WriteJsonFile(original);
+
+        var sut = new JsonPathUpdateValue
+        {
+            JsonFile = path,
+            Path = "$.foo",
+            Value = "\"bar\""
+        };
+
+        var result = sut.Execute();
+        Assert.That(result, Is.True);
+
+        Assert.That(File.ReadAllText(path), Is.EqualTo(original));
+    }
+
+    /// <summary>
+    /// When the property already has an equivalent complex value (formatted differently), the file is not rewritten.
+    /// </summary>
+    [Test]
+    public void UnchangedComplexValue_DoesNotRewriteFile()
+    {
+        var original = """{ "config": {"key": "value", "num": 123} }""";
+        var path = WriteJsonFile(original);
+
+        var sut = new JsonPathUpdateValue
+        {
+            JsonFile = path,
+            Path = "$.config",
+            Value = """{ "key" : "value", "num" : 123 }"""
+        };
+
+        var result = sut.Execute();
+        Assert.That(result, Is.True);
+
+        Assert.That(File.ReadAllText(path), Is.EqualTo(original));
+    }
+
+    /// <summary>
+    /// When the property is already a JSON null literal, setting it to null does not rewrite the file.
+    /// </summary>
+    [Test]
+    public void UnchangedNullValue_DoesNotRewriteFile()
+    {
+        var original = """{ "foo": null }""";
+        var path = WriteJsonFile(original);
+
+        var sut = new JsonPathUpdateValue
+        {
+            JsonFile = path,
+            Path = "$.foo",
+            Value = "null"
+        };
+
+        var result = sut.Execute();
+        Assert.That(result, Is.True);
+
+        Assert.That(File.ReadAllText(path), Is.EqualTo(original));
+    }
+
+    /// <summary>
+    /// When the array element already has the value, the file is not rewritten.
+    /// </summary>
+    [Test]
+    public void UnchangedArrayElement_DoesNotRewriteFile()
+    {
+        var original = """{ "items": ["a", "b", "c"] }""";
+        var path = WriteJsonFile(original);
+
+        var sut = new JsonPathUpdateValue
+        {
+            JsonFile = path,
+            Path = "$.items[1]",
+            Value = "\"b\""
+        };
+
+        var result = sut.Execute();
+        Assert.That(result, Is.True);
+
+        Assert.That(File.ReadAllText(path), Is.EqualTo(original));
+    }
+
+    /// <summary>
+    /// An out-of-range array index does not rewrite the file.
+    /// </summary>
+    [Test]
+    public void ArrayIndex_OutOfRange_DoesNotRewriteFile()
+    {
+        var original = """{ "items": [1, 2] }""";
+        var path = WriteJsonFile(original);
+
+        var sut = new JsonPathUpdateValue
+        {
+            JsonFile = path,
+            Path = "$.items[99]",
+            Value = "0"
+        };
+
+        var result = sut.Execute();
+        Assert.That(result, Is.True);
+
+        Assert.That(File.ReadAllText(path), Is.EqualTo(original));
+    }
+
+    /// <summary>
     /// A value can be replaced with a complex JSON object.
     /// </summary>
     [Test]

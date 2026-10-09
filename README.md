@@ -50,7 +50,7 @@ By default references are combined with `allOf` (intersection — every referenc
 
 ## JsonPathUpdateValue
 
-Updates the value of a property in a JSON file using a JSON path expression.
+Updates the value of a property in a JSON file using a JSON path expression. The file is only written when the property exists and its value changes, so the task can run on every build without touching up-to-date files.
 
 ```xml
 <Target Name="UpdatePackageManifestVersion" DependsOnTargets="Build" AfterTargets="GetBuildVersion;GetUmbracoBuildVersion">
