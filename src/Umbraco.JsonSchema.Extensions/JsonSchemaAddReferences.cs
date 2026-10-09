@@ -73,6 +73,7 @@ public class JsonSchemaAddReferences : Microsoft.Build.Utilities.Task
 
         using FileStream fs = File.Open(JsonSchemaFile, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None);
         JsonObject schema;
+        JsonNode? originalSchema = null;
         if (fs.Length == 0)
         {
             // Create new schema
@@ -89,6 +90,7 @@ public class JsonSchemaAddReferences : Microsoft.Build.Utilities.Task
                 CommentHandling = JsonCommentHandling.Skip,
                 AllowTrailingCommas = true
             })!;
+            originalSchema = schema.DeepClone();
         }
 
         // Resolve the object at the target path (the root when no path is specified) before modifying the file, so an
@@ -106,6 +108,12 @@ public class JsonSchemaAddReferences : Microsoft.Build.Utilities.Task
 
         // Merge the references into the resolved target object
         MergeObjects(target, CreateReferences(References, Combinator));
+
+        // Leave an existing file untouched when it already contains all references (and the target path)
+        if (originalSchema is not null && JsonNode.DeepEquals(originalSchema, schema))
+        {
+            return true;
+        }
 
         // Truncate and (re)write the schema file
         fs.SetLength(0);
