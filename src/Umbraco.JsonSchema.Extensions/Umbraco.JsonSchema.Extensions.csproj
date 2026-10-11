@@ -12,7 +12,6 @@
 
   <ItemGroup>
     <PackageReference Include="Microsoft.Build.Utilities.Core" PrivateAssets="all" ExcludeAssets="runtime" />
-    <PackageReference Include="NJsonSchema" PrivateAssets="all" Condition="'$(TargetFramework)' == 'net10.0'" />
     <PackageReference Include="System.Text.Json" PrivateAssets="all" Condition="'$(TargetFramework)' == 'netstandard2.0'" />
   </ItemGroup>
 

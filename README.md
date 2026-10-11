@@ -65,6 +65,15 @@ Updates the value of a property in a JSON file using a JSON path expression. The
 
 Generates a JSON schema from a C# type in an assembly. XML documentation comments are included as `description` fields in the generated schema, providing IntelliSense tooltips in editors.
 
+The schema is generated using the System.Text.Json [`JsonSchemaExporter`](https://learn.microsoft.com/en-us/dotnet/standard/serialization/system-text-json/extract-schema), so it follows the System.Text.Json serialization rules (e.g. `[JsonPropertyName]` and `[JsonIgnore]`), with enums as strings. On top of that, the generated schema:
+
+- only includes properties with a public setter, and excludes properties marked with `[Obsolete]` (unless `IncludeObsoleteProperties` is set, in which case they're marked with `x-deprecated`);
+- uses the summary of the property (or its type) from the XML documentation file next to each assembly as `description` (including `<inheritdoc />`), falling back to `[Description]`;
+- uses the value of `[DefaultValue]` as `default`;
+- allows comma-separated combinations of flags enums and any string for `TimeSpan` values (matching configuration binding).
+
+Nested types are included inline (only recursive types use a `$ref` to their first occurrence), so the schema doesn't contain `definitions`.
+
 > **Note:** This task runs on .NET 10, so it requires the .NET 10 SDK (i.e. `dotnet build`) or Visual Studio 2026+ (MSBuild 18.0+), which supports running .NET tasks via the TaskHost. It is not available when building with Visual Studio 2022 or earlier.
 
 > **Note:** When executing this task from a class library (`Microsoft.NET.Sdk` with `<OutputType>Library</OutputType>`, the default) and the type being generated depends on assemblies from referenced NuGet packages (e.g. `Umbraco.Core`), set `<CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>` in the project file. This ensures the dependency DLLs are copied next to the target assembly so they can be resolved at build time. This is already the default for executable projects, including the Web (`Microsoft.NET.Sdk.Web`), Worker (`Microsoft.NET.Sdk.Worker`), and Blazor WebAssembly (`Microsoft.NET.Sdk.BlazorWebAssembly`) SDKs.

@@ -1,4 +1,7 @@
 using System.IO;
+using System.Text.Encodings.Web;
+using System.Text.Json;
+using System.Text.Json.Nodes;
 using Microsoft.Build.Framework;
 
 namespace Umbraco.JsonSchema.Extensions;
@@ -51,7 +54,7 @@ public sealed class JsonSchemaGenerate : Microsoft.Build.Utilities.Task
             }
 
             var generator = new UmbracoJsonSchemaGenerator(IncludeObsoleteProperties);
-            global::NJsonSchema.JsonSchema schema = generator.Generate(assemblyFile, TypeName);
+            JsonObject schema = generator.Generate(assemblyFile, TypeName);
 
             var outputFile = Path.GetFullPath(OutputPath);
             var outputDir = Path.GetDirectoryName(outputFile);
@@ -60,7 +63,12 @@ public sealed class JsonSchemaGenerate : Microsoft.Build.Utilities.Task
                 Directory.CreateDirectory(outputDir);
             }
 
-            File.WriteAllText(outputFile, schema.ToJson());
+            using (FileStream fs = File.Create(outputFile))
+            using (var writer = new Utf8JsonWriter(fs, new JsonWriterOptions { Indented = true, Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping }))
+            {
+                schema.WriteTo(writer);
+            }
+
             Log.LogMessage(MessageImportance.High, "Generated JSON schema: {0}", outputFile);
 
             return true;
