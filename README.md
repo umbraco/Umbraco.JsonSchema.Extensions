@@ -22,7 +22,7 @@ Adds references to a JSON schema file, grouped under a combining keyword (`allOf
 |-----------|----------|-------------|
 | `JsonSchemaFile` | Yes | Path to the JSON schema file to create or update |
 | `References` | Yes | The references to add as `$ref` entries (the `Weight` metadata orders them) |
-| `TargetPath` | No | JSON path to the object the references are added to (default: the schema root) |
+| `TargetPath` | No | [JSON path](#json-paths) to the object the references are added to (default: the schema root) |
 | `Combinator` | No | The JSON Schema keyword the references are grouped under: `allOf` (default), `anyOf` or `oneOf` |
 
 By default the `allOf` is added at the root, so every reference constrains the whole schema. Set `TargetPath` to compose references into a nested location instead — for example to only extend a single property while leaving the rest of the schema owned by a base reference:
@@ -40,7 +40,7 @@ By default the `allOf` is added at the root, so every reference constrains the w
 </Target>
 ```
 
-`TargetPath` supports object property segments using dot or bracket notation, with an optional leading `$` (e.g. `$.properties.extensions.items` or `properties['extensions'].items`). Intermediate objects are created when they do not exist; array indices are not supported.
+`TargetPath` is a [JSON path](#json-paths) of property names only (e.g. `$.properties.extensions.items` or `properties['extensions'].items`). Intermediate objects are created when they do not exist; array indices are not supported and an existing value that isn't an object fails the build.
 
 By default references are combined with `allOf` (intersection — every referenced schema must match). Set `Combinator` to `anyOf` or `oneOf` to combine them as a union instead — useful when the target is itself a union (e.g. the items of a discriminated array), so each referenced schema only needs to match its own entries rather than all of them:
 
@@ -64,10 +64,10 @@ Updates the value of a property in a JSON file using a JSON path expression. The
 | Parameter | Required | Description |
 |-----------|----------|-------------|
 | `JsonFile` | Yes | Path to the JSON file to update (must exist) |
-| `Path` | Yes | JSON path to the existing value to replace |
+| `Path` | Yes | [JSON path](#json-paths) to the existing value to replace |
 | `Value` | Yes | The new value as JSON (e.g. `&quot;1.0.0&quot;` for a string, `42` or `null`) |
 
-A `Value` that isn't valid JSON fails the build without touching the file.
+A malformed `Path` or a `Value` that isn't valid JSON fails the build without touching the file.
 
 ## Updating JSON files
 
@@ -78,6 +78,19 @@ A `Value` that isn't valid JSON fails the build without touching the file.
 - The file is written as indented UTF-8 JSON, without escaping non-ASCII or HTML-sensitive characters (e.g. `æ`, `&` or `'`).
 - A file that can't be opened, contains invalid JSON or has an unexpected root (a JSON object for `JsonSchemaAddReferences`, any non-`null` value for `JsonPathUpdateValue`) fails the build with an error.
 - `JsonSchemaAddReferences` creates the JSON schema file (and its directory) when it doesn't exist or is empty, whereas `JsonPathUpdateValue` fails the build.
+
+## JSON paths
+
+`JsonSchemaAddReferences` (`TargetPath`) and `JsonPathUpdateValue` (`Path`) address a value inside a JSON file using the same JSON path syntax:
+
+| Syntax | Example | Addresses |
+|--------|---------|-----------|
+| `$` (optional) | `$` | The root (also the empty path) |
+| `.name` | `$.properties.version` | A property (the first `.` can be omitted, e.g. `properties.version`) |
+| `['name']` or `["name"]` | `$['dotted.name']` | A property whose name can contain any character except the quote, e.g. `.` or digits |
+| `[index]` | `$.items[0]` | An array element (a non-negative integer) |
+
+A quoted segment is always a property name, so `$['0']` addresses the property named `0`, whereas `$[0]` addresses the first array element. A malformed path (e.g. `$[-1]`, an unquoted `[name]` or an unclosed bracket) fails the build.
 
 ## JsonSchemaGenerate
 

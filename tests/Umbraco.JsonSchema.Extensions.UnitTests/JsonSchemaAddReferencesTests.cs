@@ -410,6 +410,27 @@ public class JsonSchemaAddReferencesTests
     }
 
     /// <summary>
+    /// A malformed target path logs an error and returns false, without creating the schema file.
+    /// </summary>
+    [Test]
+    public void TargetPath_Malformed_LogsErrorAndReturnsFalse()
+    {
+        var path = TempFile();
+        var engine = new FakeBuildEngine();
+        var sut = new JsonSchemaAddReferences
+        {
+            BuildEngine = engine,
+            JsonSchemaFile = path,
+            TargetPath = "$.properties[extensions]",
+            References = new ITaskItem[] { new FakeTaskItem("acme.json#") }
+        };
+
+        Assert.That(sut.Execute(), Is.False);
+        Assert.That(engine.Errors, Has.Count.EqualTo(1));
+        Assert.That(path, Does.Not.Exist);
+    }
+
+    /// <summary>
     /// References default to being combined under <c>allOf</c>.
     /// </summary>
     [Test]
