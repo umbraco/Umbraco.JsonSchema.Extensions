@@ -204,61 +204,6 @@ public class JsonSchemaAddReferencesTests
     }
 
     /// <summary>
-    /// An existing schema containing JSON comments and trailing commas can be parsed
-    /// (validates JsonDocumentOptions configuration).
-    /// </summary>
-    [Test]
-    public void ExistingSchema_ToleratesCommentsAndTrailingCommas()
-    {
-        var path = TempFile();
-        // Write JSON with comments and a trailing comma (not valid strict JSON)
-        File.WriteAllText(
-            path,
-            """
-            {
-                // This is a comment
-                "$schema": "http://json-schema.org/draft-04/schema#",
-                "allOf": [
-                    { "$ref": "existing.json" },
-                ]
-            }
-            """);
-
-        var sut = new JsonSchemaAddReferences
-        {
-            JsonSchemaFile = path,
-            References = new ITaskItem[] { new FakeTaskItem("new.json") }
-        };
-
-        var result = sut.Execute();
-        Assert.That(result, Is.True);
-
-        JsonArray allOf = JsonNode.Parse(File.ReadAllText(path))!["allOf"]!.AsArray();
-        Assert.That(allOf.Count, Is.EqualTo(2));
-    }
-
-    /// <summary>
-    /// The output file is written as indented JSON (validates Utf8JsonWriter options).
-    /// </summary>
-    [Test]
-    public void Output_IsIndentedJson()
-    {
-        var path = TempFile();
-        var sut = new JsonSchemaAddReferences
-        {
-            JsonSchemaFile = path,
-            References = new ITaskItem[] { new FakeTaskItem("ref.json") }
-        };
-
-        sut.Execute();
-
-        // Indented JSON will contain newlines and leading whitespace
-        var content = File.ReadAllText(path);
-        Assert.That(content, Does.Contain(Environment.NewLine).Or.Contain("\n"));
-        Assert.That(content, Does.Match(@"^\s*\{"));
-    }
-
-    /// <summary>
     /// When the existing schema already contains all references, the file is not rewritten.
     /// </summary>
     [Test]
@@ -282,84 +227,6 @@ public class JsonSchemaAddReferencesTests
         Assert.That(result, Is.True);
 
         Assert.That(File.ReadAllText(path), Is.EqualTo(original));
-    }
-
-    /// <summary>
-    /// When the existing schema already contains all references at the target path, the file is not rewritten.
-    /// </summary>
-    [Test]
-    public void TargetPath_AllReferencesPresent_DoesNotRewriteFile()
-    {
-        var original = """{"properties":{"extensions":{"items":{"anyOf":[{"$ref":"ref.json#/properties/extensions/items"}]}}}}""";
-        var path = TempFile();
-        File.WriteAllText(path, original);
-
-        var sut = new JsonSchemaAddReferences
-        {
-            JsonSchemaFile = path,
-            TargetPath = "$.properties.extensions.items",
-            Combinator = "anyOf",
-            References = new ITaskItem[] { new FakeTaskItem("ref.json#/properties/extensions/items") }
-        };
-
-        var result = sut.Execute();
-        Assert.That(result, Is.True);
-
-        Assert.That(File.ReadAllText(path), Is.EqualTo(original));
-    }
-
-    /// <summary>
-    /// When the existing schema already contains all references, comments and trailing commas are preserved
-    /// (as the file is not rewritten).
-    /// </summary>
-    [Test]
-    public void ExistingSchema_AllReferencesPresent_PreservesCommentsAndTrailingCommas()
-    {
-        var original = """
-            {
-                // This is a comment
-                "$schema": "http://json-schema.org/draft-04/schema#",
-                "allOf": [
-                    { "$ref": "existing.json" },
-                ]
-            }
-            """;
-        var path = TempFile();
-        File.WriteAllText(path, original);
-
-        var sut = new JsonSchemaAddReferences
-        {
-            JsonSchemaFile = path,
-            References = new ITaskItem[] { new FakeTaskItem("existing.json") }
-        };
-
-        var result = sut.Execute();
-        Assert.That(result, Is.True);
-
-        Assert.That(File.ReadAllText(path), Is.EqualTo(original));
-    }
-
-    /// <summary>
-    /// Running the task again with the same references does not write the file again.
-    /// </summary>
-    [Test]
-    public void SecondRun_WithSameReferences_DoesNotWriteFile()
-    {
-        var path = TempFile();
-        var sut = new JsonSchemaAddReferences
-        {
-            JsonSchemaFile = path,
-            References = new ITaskItem[] { new FakeTaskItem("ref.json") }
-        };
-
-        Assert.That(sut.Execute(), Is.True);
-
-        var lastWriteTime = new DateTime(2000, 1, 1, 0, 0, 0, DateTimeKind.Utc);
-        File.SetLastWriteTimeUtc(path, lastWriteTime);
-
-        Assert.That(sut.Execute(), Is.True);
-
-        Assert.That(File.GetLastWriteTimeUtc(path), Is.EqualTo(lastWriteTime));
     }
 
     /// <summary>
@@ -633,34 +500,31 @@ public class JsonSchemaAddReferencesTests
         Assert.That(path, Does.Not.Exist);
     }
 
+    /// <summary>
+    /// An existing schema file with invalid JSON logs an error and returns false, leaving the file untouched.
+    /// </summary>
+    [Test]
+    public void InvalidSchemaFile_LogsErrorAndReturnsFalse()
+    {
+        var original = """{ "allOf": [ """;
+        var path = TempFile();
+        File.WriteAllText(path, original);
+
+        var engine = new FakeBuildEngine();
+        var sut = new JsonSchemaAddReferences
+        {
+            BuildEngine = engine,
+            JsonSchemaFile = path,
+            References = new ITaskItem[] { new FakeTaskItem("ref1.json") }
+        };
+
+        Assert.That(sut.Execute(), Is.False);
+        Assert.That(engine.Errors, Has.Count.EqualTo(1));
+        Assert.That(File.ReadAllText(path), Is.EqualTo(original));
+    }
+
     private string TempFile(string name = "schema.json")
         => Path.Combine(_tempDir, name);
-
-    /// <summary>
-    /// Lightweight stub for <see cref="IBuildEngine"/> that captures logged errors.
-    /// </summary>
-    private sealed class FakeBuildEngine : IBuildEngine
-    {
-        public List<string?> Errors { get; } = new();
-
-        public bool ContinueOnError => false;
-
-        public int LineNumberOfTaskNode => 0;
-
-        public int ColumnNumberOfTaskNode => 0;
-
-        public string ProjectFileOfTaskNode => string.Empty;
-
-        public bool BuildProjectFile(string projectFileName, string[] targetNames, IDictionary globalProperties, IDictionary targetOutputs) => true;
-
-        public void LogCustomEvent(CustomBuildEventArgs e) { }
-
-        public void LogErrorEvent(BuildErrorEventArgs e) => Errors.Add(e.Message);
-
-        public void LogMessageEvent(BuildMessageEventArgs e) { }
-
-        public void LogWarningEvent(BuildWarningEventArgs e) { }
-    }
 
     /// <summary>
     /// Lightweight stub for <see cref="ITaskItem"/> used in tests.

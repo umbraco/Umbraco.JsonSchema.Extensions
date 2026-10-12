@@ -1,5 +1,4 @@
 using System.Collections.Generic;
-using System.IO;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using Microsoft.Build.Framework;
@@ -42,77 +41,68 @@ public class JsonPathUpdateValue : Microsoft.Build.Utilities.Task
     /// <inheritdoc />
     public override bool Execute()
     {
-        using (FileStream fs = File.Open(JsonFile, FileMode.Open, FileAccess.ReadWrite, FileShare.None))
+        // Parse the value before opening the JSON file, so an invalid value fails the build without touching the file
+        JsonNode? value;
+        try
         {
-            // Read JSON file
-            var json = JsonNode.Parse(fs, documentOptions: new JsonDocumentOptions
-            {
-                CommentHandling = JsonCommentHandling.Skip,
-                AllowTrailingCommas = true
-            });
+            value = JsonNode.Parse(Value);
+        }
+        catch (JsonException ex)
+        {
+            Log.LogError("Invalid Value '{0}' for JSON file '{1}': {2}", Value, JsonFile, ex.Message);
+            return false;
+        }
 
-            if (json is null)
-            {
-                return true;
-            }
+        List<PathSegment> segments = ParsePath(Path);
 
-            // Parse path into segments
-            List<PathSegment> segments = ParsePath(Path);
-            if (segments.Count == 0)
-            {
-                return true;
-            }
-
-            // Navigate to parent of the target token
-            JsonNode? parent = json;
-            for (int i = 0; i < segments.Count - 1; i++)
-            {
-                parent = Navigate(parent, segments[i]);
-                if (parent is null)
-                {
-                    return true;
-                }
-            }
-
-            // Replace value at the last segment (leaving the file untouched when it doesn't exist or is unchanged)
-            PathSegment lastSegment = segments[segments.Count - 1];
-            var newValue = JsonNode.Parse(Value);
-
-            if (lastSegment.IsArrayIndex && parent is JsonArray arr)
-            {
-                if (lastSegment.ArrayIndex >= arr.Count || JsonNode.DeepEquals(arr[lastSegment.ArrayIndex], newValue))
-                {
-                    return true;
-                }
-
-                arr[lastSegment.ArrayIndex] = newValue;
-            }
-            else if (lastSegment.PropertyName is not null && parent is JsonObject obj)
-            {
-                if (!obj.TryGetPropertyValue(lastSegment.PropertyName, out JsonNode? currentValue) || JsonNode.DeepEquals(currentValue, newValue))
-                {
-                    return true;
-                }
-
-                obj[lastSegment.PropertyName] = newValue;
-            }
-            else
-            {
-                return true;
-            }
-
-            // Truncate file
-            fs.SetLength(0);
-            fs.Position = 0;
-
-            // Write JSON file
-            using (var writer = new Utf8JsonWriter(fs, new JsonWriterOptions { Indented = true }))
-            {
-                json.WriteTo(writer);
-            }
+        try
+        {
+            // Replace the existing value (the file is only written when the value changes)
+            JsonFileEditor.Update<JsonNode>(JsonFile, json => Replace(json, segments, value));
+        }
+        catch (JsonFileException ex)
+        {
+            Log.LogError("Could not update JSON file '{0}': {1}", ex.FilePath, ex.Message);
+            return false;
         }
 
         return true;
+    }
+
+    private static void Replace(JsonNode json, List<PathSegment> segments, JsonNode? value)
+    {
+        if (segments.Count == 0)
+        {
+            return;
+        }
+
+        // Navigate to parent of the target token
+        JsonNode? parent = json;
+        for (int i = 0; i < segments.Count - 1; i++)
+        {
+            parent = Navigate(parent, segments[i]);
+            if (parent is null)
+            {
+                return;
+            }
+        }
+
+        // Replace value at the last segment (only when it already exists)
+        PathSegment lastSegment = segments[segments.Count - 1];
+        if (lastSegment.IsArrayIndex && parent is JsonArray arr)
+        {
+            if (lastSegment.ArrayIndex < arr.Count)
+            {
+                arr[lastSegment.ArrayIndex] = value;
+            }
+        }
+        else if (lastSegment.PropertyName is not null && parent is JsonObject obj)
+        {
+            if (obj.ContainsKey(lastSegment.PropertyName))
+            {
+                obj[lastSegment.PropertyName] = value;
+            }
+        }
     }
 
     private static JsonNode? Navigate(JsonNode? node, PathSegment segment)

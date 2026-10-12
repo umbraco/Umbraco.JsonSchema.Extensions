@@ -6,7 +6,7 @@ MSBuild tasks for Umbraco to add JSON schema references, update JSON properties,
 
 ## JsonSchemaAddReferences
 
-Adds references to a JSON schema file, grouped under a combining keyword (`allOf` by default). Each reference may carry a `Weight` metadata value to control its order (ascending, default `0`). The references are merged using union semantics, so re-running the task does not create duplicates. An existing file is only written when references are added, so the task can run on every build without touching an up-to-date file.
+Adds references to a JSON schema file, grouped under a combining keyword (`allOf` by default). Each reference may carry a `Weight` metadata value to control its order (ascending, default `0`). The references are merged using union semantics, so re-running the task does not create duplicates. An existing file is only written when references are added, so the task can run on every build without touching an up-to-date file (see [Updating JSON files](#updating-json-files)).
 
 ```xml
 <Target Name="AddJsonSchemaReferences" BeforeTargets="Build">
@@ -50,7 +50,7 @@ By default references are combined with `allOf` (intersection — every referenc
 
 ## JsonPathUpdateValue
 
-Updates the value of a property in a JSON file using a JSON path expression. The file is only written when the property exists and its value changes, so the task can run on every build without touching up-to-date files.
+Updates the value of a property in a JSON file using a JSON path expression. The file is only written when the property exists and its value changes, so the task can run on every build without touching up-to-date files (see [Updating JSON files](#updating-json-files)).
 
 ```xml
 <Target Name="UpdatePackageManifestVersion" DependsOnTargets="Build" AfterTargets="GetBuildVersion;GetUmbracoBuildVersion">
@@ -60,6 +60,24 @@ Updates the value of a property in a JSON file using a JSON path expression. The
   <JsonPathUpdateValue JsonFile="%(_PackageManifestFiles.FullPath)" Path="$.version" Value="&quot;$(PackageVersion)&quot;" />
 </Target>
 ```
+
+| Parameter | Required | Description |
+|-----------|----------|-------------|
+| `JsonFile` | Yes | Path to the JSON file to update (must exist) |
+| `Path` | Yes | JSON path to the existing value to replace |
+| `Value` | Yes | The new value as JSON (e.g. `&quot;1.0.0&quot;` for a string, `42` or `null`) |
+
+A `Value` that isn't valid JSON fails the build without touching the file.
+
+## Updating JSON files
+
+`JsonSchemaAddReferences` and `JsonPathUpdateValue` read and write JSON files the same way:
+
+- Comments and trailing commas are allowed when reading, but are lost when the file is written.
+- The file is only written when its content changes (ignoring formatting), so the tasks can run on every build without touching up-to-date files.
+- The file is written as indented UTF-8 JSON, without escaping non-ASCII or HTML-sensitive characters (e.g. `æ`, `&` or `'`).
+- A file that can't be opened, contains invalid JSON or has an unexpected root (a JSON object for `JsonSchemaAddReferences`, any non-`null` value for `JsonPathUpdateValue`) fails the build with an error.
+- `JsonSchemaAddReferences` creates the JSON schema file (and its directory) when it doesn't exist or is empty, whereas `JsonPathUpdateValue` fails the build.
 
 ## JsonSchemaGenerate
 

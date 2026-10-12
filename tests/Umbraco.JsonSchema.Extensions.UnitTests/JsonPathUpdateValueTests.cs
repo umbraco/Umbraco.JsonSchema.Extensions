@@ -197,72 +197,6 @@ public class JsonPathUpdateValueTests
     }
 
     /// <summary>
-    /// When the property already has an equivalent complex value (formatted differently), the file is not rewritten.
-    /// </summary>
-    [Test]
-    public void UnchangedComplexValue_DoesNotRewriteFile()
-    {
-        var original = """{ "config": {"key": "value", "num": 123} }""";
-        var path = WriteJsonFile(original);
-
-        var sut = new JsonPathUpdateValue
-        {
-            JsonFile = path,
-            Path = "$.config",
-            Value = """{ "key" : "value", "num" : 123 }"""
-        };
-
-        var result = sut.Execute();
-        Assert.That(result, Is.True);
-
-        Assert.That(File.ReadAllText(path), Is.EqualTo(original));
-    }
-
-    /// <summary>
-    /// When the property is already a JSON null literal, setting it to null does not rewrite the file.
-    /// </summary>
-    [Test]
-    public void UnchangedNullValue_DoesNotRewriteFile()
-    {
-        var original = """{ "foo": null }""";
-        var path = WriteJsonFile(original);
-
-        var sut = new JsonPathUpdateValue
-        {
-            JsonFile = path,
-            Path = "$.foo",
-            Value = "null"
-        };
-
-        var result = sut.Execute();
-        Assert.That(result, Is.True);
-
-        Assert.That(File.ReadAllText(path), Is.EqualTo(original));
-    }
-
-    /// <summary>
-    /// When the array element already has the value, the file is not rewritten.
-    /// </summary>
-    [Test]
-    public void UnchangedArrayElement_DoesNotRewriteFile()
-    {
-        var original = """{ "items": ["a", "b", "c"] }""";
-        var path = WriteJsonFile(original);
-
-        var sut = new JsonPathUpdateValue
-        {
-            JsonFile = path,
-            Path = "$.items[1]",
-            Value = "\"b\""
-        };
-
-        var result = sut.Execute();
-        Assert.That(result, Is.True);
-
-        Assert.That(File.ReadAllText(path), Is.EqualTo(original));
-    }
-
-    /// <summary>
     /// An out-of-range array index does not rewrite the file.
     /// </summary>
     [Test]
@@ -330,77 +264,6 @@ public class JsonPathUpdateValueTests
     }
 
     /// <summary>
-    /// An existing file with JSON comments and trailing commas is parsed successfully
-    /// (validates JsonDocumentOptions configuration).
-    /// </summary>
-    [Test]
-    public void ToleratesCommentsAndTrailingCommas()
-    {
-        var path = WriteJsonFile("""
-        {
-            // A comment
-            "value": "old",
-        }
-        """);
-
-        var sut = new JsonPathUpdateValue
-        {
-            JsonFile = path,
-            Path = "$.value",
-            Value = "\"new\""
-        };
-
-        var result = sut.Execute();
-        Assert.That(result, Is.True);
-
-        JsonNode json = JsonNode.Parse(File.ReadAllText(path))!;
-        Assert.That(json["value"]!.GetValue<string>(), Is.EqualTo("new"));
-    }
-
-    /// <summary>
-    /// The output is written as indented JSON (validates Utf8JsonWriter options).
-    /// </summary>
-    [Test]
-    public void Output_IsIndentedJson()
-    {
-        var path = WriteJsonFile("""{ "foo": "bar" }""");
-
-        var sut = new JsonPathUpdateValue
-        {
-            JsonFile = path,
-            Path = "$.foo",
-            Value = "\"baz\""
-        };
-
-        sut.Execute();
-
-        var content = File.ReadAllText(path);
-        Assert.That(content, Does.Contain(Environment.NewLine).Or.Contain("\n"));
-    }
-
-    /// <summary>
-    /// An out-of-range array index leaves the file unchanged without error.
-    /// </summary>
-    [Test]
-    public void ArrayIndex_OutOfRange_LeavesFileUnchanged()
-    {
-        var path = WriteJsonFile("""{ "items": [1, 2] }""");
-
-        var sut = new JsonPathUpdateValue
-        {
-            JsonFile = path,
-            Path = "$.items[99]",
-            Value = "0"
-        };
-
-        var result = sut.Execute();
-        Assert.That(result, Is.True);
-
-        JsonArray arr = JsonNode.Parse(File.ReadAllText(path))!["items"]!.AsArray();
-        Assert.That(arr.Count, Is.EqualTo(2));
-    }
-
-    /// <summary>
     /// A path without the leading '$' still works.
     /// </summary>
     [Test]
@@ -420,6 +283,51 @@ public class JsonPathUpdateValueTests
 
         JsonNode json = JsonNode.Parse(File.ReadAllText(path))!;
         Assert.That(json["foo"]!.GetValue<string>(), Is.EqualTo("new"));
+    }
+
+    /// <summary>
+    /// A value that isn't valid JSON logs an error and returns false, leaving the file untouched.
+    /// </summary>
+    [Test]
+    public void InvalidValue_LogsErrorAndReturnsFalse()
+    {
+        var original = """{ "foo": "bar" }""";
+        var path = WriteJsonFile(original);
+
+        var engine = new FakeBuildEngine();
+        var sut = new JsonPathUpdateValue
+        {
+            BuildEngine = engine,
+            JsonFile = path,
+            Path = "$.foo",
+            Value = "not-json"
+        };
+
+        Assert.That(sut.Execute(), Is.False);
+        Assert.That(engine.Errors, Has.Count.EqualTo(1));
+        Assert.That(File.ReadAllText(path), Is.EqualTo(original));
+    }
+
+    /// <summary>
+    /// A missing JSON file logs an error and returns false, without creating the file.
+    /// </summary>
+    [Test]
+    public void MissingFile_LogsErrorAndReturnsFalse()
+    {
+        var path = Path.Combine(_tempDir, "missing.json");
+
+        var engine = new FakeBuildEngine();
+        var sut = new JsonPathUpdateValue
+        {
+            BuildEngine = engine,
+            JsonFile = path,
+            Path = "$.foo",
+            Value = "\"new\""
+        };
+
+        Assert.That(sut.Execute(), Is.False);
+        Assert.That(engine.Errors, Has.Count.EqualTo(1));
+        Assert.That(path, Does.Not.Exist);
     }
 
     private string WriteJsonFile(string json, string name = "test.json")

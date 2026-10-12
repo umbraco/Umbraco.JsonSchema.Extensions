@@ -1,9 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Globalization;
-using System.IO;
 using System.Linq;
-using System.Text.Json;
 using System.Text.Json.Nodes;
 using Microsoft.Build.Framework;
 
@@ -71,56 +69,26 @@ public class JsonSchemaAddReferences : Microsoft.Build.Utilities.Task
             return false;
         }
 
-        using FileStream fs = File.Open(JsonSchemaFile, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None);
-        JsonObject schema;
-        JsonNode? originalSchema = null;
-        if (fs.Length == 0)
+        JsonObject references = CreateReferences(References, Combinator);
+        var newSchema = new JsonObject
         {
-            // Create new schema
-            schema = new JsonObject
-            {
-                ["$schema"] = "http://json-schema.org/draft-04/schema#"
-            };
-        }
-        else
-        {
-            // Read existing schema file
-            schema = (JsonObject)JsonNode.Parse(fs, documentOptions: new JsonDocumentOptions
-            {
-                CommentHandling = JsonCommentHandling.Skip,
-                AllowTrailingCommas = true
-            })!;
-            originalSchema = schema.DeepClone();
-        }
+            ["$schema"] = "http://json-schema.org/draft-04/schema#"
+        };
 
-        // Resolve the object at the target path (the root when no path is specified) before modifying the file, so an
-        // invalid path fails the build cleanly without truncating the existing schema
-        JsonObject target;
         try
         {
-            target = ResolveOrCreateObject(schema, TargetPath);
+            // Merge the references into the object at the target path (the file is only written when references are added)
+            JsonFileEditor.Update(JsonSchemaFile, schema => MergeObjects(ResolveOrCreateObject(schema, TargetPath), references), newSchema);
+        }
+        catch (JsonFileException ex)
+        {
+            Log.LogError("Could not update JSON schema file '{0}': {1}", ex.FilePath, ex.Message);
+            return false;
         }
         catch (InvalidOperationException ex)
         {
             Log.LogError("Invalid TargetPath '{0}' for JSON schema file '{1}': {2}", TargetPath, JsonSchemaFile, ex.Message);
             return false;
-        }
-
-        // Merge the references into the resolved target object
-        MergeObjects(target, CreateReferences(References, Combinator));
-
-        // Leave an existing file untouched when it already contains all references (and the target path)
-        if (originalSchema is not null && JsonNode.DeepEquals(originalSchema, schema))
-        {
-            return true;
-        }
-
-        // Truncate and (re)write the schema file
-        fs.SetLength(0);
-        fs.Position = 0;
-        using (var writer = new Utf8JsonWriter(fs, new JsonWriterOptions { Indented = true }))
-        {
-            schema.WriteTo(writer);
         }
 
         return true;
