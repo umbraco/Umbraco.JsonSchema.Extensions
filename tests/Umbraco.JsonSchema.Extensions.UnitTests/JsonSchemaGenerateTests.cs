@@ -1,12 +1,10 @@
 using System;
-using System.Collections;
 using System.ComponentModel;
 using System.IO;
 using System.Linq;
 using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
-using Microsoft.Build.Framework;
 using NUnit.Framework;
 
 namespace Umbraco.JsonSchema.Extensions.UnitTests;
@@ -579,26 +577,5 @@ public class JsonSchemaGenerateTests
         /// A nested object property (should generate proper nested schema).
         /// </summary>
         public TestAddress? Address { get; set; }
-    }
-
-    private sealed class FakeBuildEngine : IBuildEngine
-    {
-        public bool ContinueOnError => false;
-
-        public int LineNumberOfTaskNode => 0;
-
-        public int ColumnNumberOfTaskNode => 0;
-
-        public string ProjectFileOfTaskNode => string.Empty;
-
-        public bool BuildProjectFile(string projectFileName, string[] targetNames, IDictionary globalProperties, IDictionary targetOutputs) => true;
-
-        public void LogCustomEvent(CustomBuildEventArgs e) { }
-
-        public void LogErrorEvent(BuildErrorEventArgs e) { }
-
-        public void LogMessageEvent(BuildMessageEventArgs e) { }
-
-        public void LogWarningEvent(BuildWarningEventArgs e) { }
     }
 }
