@@ -79,6 +79,8 @@ A malformed `Path` or a `Value` that isn't valid JSON fails the build without to
 - A file that can't be opened, contains invalid JSON or has an unexpected root (a JSON object for `JsonSchemaAddReferences`, any non-`null` value for `JsonPathUpdateValue`) fails the build with an error.
 - `JsonSchemaAddReferences` creates the JSON schema file (and its directory) when it doesn't exist or is empty, whereas `JsonPathUpdateValue` fails the build.
 
+`JsonSchemaGenerate` writes its output in the same format, but always writes the file (even when unchanged), so its timestamp lets MSBuild skip generation when the assembly hasn't changed (see the `Inputs`/`Outputs` in the [example](#jsonschemagenerate)).
+
 ## JSON paths
 
 `JsonSchemaAddReferences` (`TargetPath`) and `JsonPathUpdateValue` (`Path`) address a value inside a JSON file using the same JSON path syntax:

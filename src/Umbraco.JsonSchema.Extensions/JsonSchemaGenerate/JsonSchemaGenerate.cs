@@ -1,6 +1,4 @@
 using System.IO;
-using System.Text.Encodings.Web;
-using System.Text.Json;
 using System.Text.Json.Nodes;
 using Microsoft.Build.Framework;
 
@@ -56,22 +54,20 @@ public sealed class JsonSchemaGenerate : Microsoft.Build.Utilities.Task
             var generator = new UmbracoJsonSchemaGenerator(IncludeObsoleteProperties);
             JsonObject schema = generator.Generate(assemblyFile, TypeName);
 
+            // Always write the output (even when unchanged), as its timestamp lets MSBuild skip generation when the assembly
+            // hasn't changed since (incremental builds using Inputs/Outputs)
             var outputFile = Path.GetFullPath(OutputPath);
-            var outputDir = Path.GetDirectoryName(outputFile);
-            if (outputDir is not null)
-            {
-                Directory.CreateDirectory(outputDir);
-            }
-
-            using (FileStream fs = File.Create(outputFile))
-            using (var writer = new Utf8JsonWriter(fs, new JsonWriterOptions { Indented = true, Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping }))
-            {
-                schema.WriteTo(writer);
-            }
+            JsonFileEditor.Write(outputFile, schema);
 
             Log.LogMessage(MessageImportance.High, "Generated JSON schema: {0}", outputFile);
 
             return true;
+        }
+        catch (JsonFileException ex)
+        {
+            Log.LogError("Could not write JSON schema file '{0}': {1}", ex.FilePath, ex.Message);
+
+            return false;
         }
         catch (System.Exception ex)
         {
