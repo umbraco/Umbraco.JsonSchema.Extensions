@@ -64,9 +64,10 @@ public class PluginLoadContextTests
             }
             """);
 
-        // The plugin's own copy would be loaded when not explicitly shared
+        // The plugin's own copy would be loaded when not explicitly shared (only comparing the end of the path, as the
+        // temporary directory can be a symbolic link that is resolved, e.g. /var to /private/var on macOS)
         var resolvedPath = new AssemblyDependencyResolver(pluginPath).ResolveAssemblyToPath(new AssemblyName("System.Text.Json"));
-        Assert.That(resolvedPath, Is.SamePath(pluginSystemTextJsonPath));
+        Assert.That(resolvedPath, Does.EndWith(Path.Combine(Path.GetFileName(_tempDir), Path.GetFileName(pluginSystemTextJsonPath))));
 
         using var sut = new PluginLoadContext(pluginPath);
         Assembly assembly = sut.LoadFromAssemblyName(new AssemblyName("System.Text.Json"));
