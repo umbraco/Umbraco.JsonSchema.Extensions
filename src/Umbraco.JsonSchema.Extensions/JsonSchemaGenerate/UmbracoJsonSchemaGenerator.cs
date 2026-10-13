@@ -81,7 +81,10 @@ internal sealed class UmbracoJsonSchemaGenerator
                 new JsonObject { ["pattern"] = $"^\\s*{namePattern}(\\s*,\\s*{namePattern})*\\s*$" });
         }
 
-        if (attributeProvider?.GetCustomAttributes(typeof(DefaultValueAttribute), inherit: true) is [DefaultValueAttribute defaultValue, ..])
+        // A null default value for a non-nullable value type means the value couldn't be converted (as the attribute ignores
+        // conversion errors), so leave it out instead of reporting an invalid default
+        if (attributeProvider?.GetCustomAttributes(typeof(DefaultValueAttribute), inherit: true) is [DefaultValueAttribute defaultValue, ..]
+            && (defaultValue.Value is not null || !context.TypeInfo.Type.IsValueType || Nullable.GetUnderlyingType(context.TypeInfo.Type) is not null))
         {
             schema["default"] = defaultValue.Value is null ? null : JsonSerializer.SerializeToNode(defaultValue.Value, defaultValue.Value.GetType(), options);
         }

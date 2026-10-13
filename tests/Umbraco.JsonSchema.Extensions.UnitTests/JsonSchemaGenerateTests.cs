@@ -258,6 +258,21 @@ public class JsonSchemaGenerateTests
     }
 
     /// <summary>
+    /// The generated schema leaves out a default value that couldn't be converted to the (non-nullable) property type.
+    /// </summary>
+    [Test]
+    public void Execute_ExcludesUnconvertibleDefaultValues()
+    {
+        var outputPath = TempFile("schema.json");
+        var sut = CreateTask(outputPath);
+
+        sut.Execute();
+
+        var properties = ParseSchema(outputPath)["properties"]!;
+        Assert.That(properties["UnconvertibleDefault"]!.AsObject().ContainsKey("default"), Is.False);
+    }
+
+    /// <summary>
     /// The generated schema doesn't restrict time spans to the constant format, as configuration binding parses other formats as well.
     /// </summary>
     [Test]
@@ -559,6 +574,9 @@ public class JsonSchemaGenerateTests
         public string IgnoredValue { get; set; } = string.Empty;
 
         public object? Anything { get; set; }
+
+        [DefaultValue(typeof(int), "not-a-number")]
+        public int UnconvertibleDefault { get; set; }
 
         [System.ComponentModel.Description("A property described by an attribute.")]
         public string? AttributeDescribed { get; set; }
