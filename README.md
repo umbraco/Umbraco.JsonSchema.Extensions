@@ -101,11 +101,11 @@ Generates a JSON schema from a C# type in an assembly. XML documentation comment
 The schema is generated using the System.Text.Json [`JsonSchemaExporter`](https://learn.microsoft.com/en-us/dotnet/standard/serialization/system-text-json/extract-schema), so it follows the System.Text.Json serialization rules (e.g. `[JsonPropertyName]` and `[JsonIgnore]`), with enums as strings. On top of that, the generated schema:
 
 - only includes properties with a public setter, and excludes properties marked with `[Obsolete]` (unless `IncludeObsoleteProperties` is set, in which case they're marked with `x-deprecated`);
-- uses the summary of the property (or its type) from the XML documentation file next to each assembly as `description` (including `<inheritdoc />`), falling back to `[Description]`;
+- uses the summary from the XML documentation file next to each assembly (including `<inheritdoc />`) or else the `[Description]` of the property as `description`, falling back to those of its type (an XML documentation file that can't be read is ignored);
 - uses the value of `[DefaultValue]` as `default`;
 - allows comma-separated combinations of flags enums and any string for `TimeSpan` values (matching configuration binding).
 
-Nested types are included inline (only recursive types use a `$ref` to their first occurrence), so the schema doesn't contain `definitions`.
+Nested types are included inline (only recursive types use a `$ref`, pointing to the enclosing schema of the same type), so the schema doesn't contain `definitions`.
 
 > **Note:** This task runs on .NET 10, so it requires the .NET 10 SDK (i.e. `dotnet build`) or Visual Studio 2026+ (MSBuild 18.0+), which supports running .NET tasks via the TaskHost. It is not available when building with Visual Studio 2022 or earlier.
 
