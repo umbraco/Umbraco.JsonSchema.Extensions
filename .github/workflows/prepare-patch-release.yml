@@ -36,6 +36,7 @@ jobs:
         uses: dotnet/nbgv@v0.5.2
 
       - name: Prepare patch release
+        id: prepare
         run: |
           set -euo pipefail
 
@@ -55,6 +56,8 @@ jobs:
           nextVersion="$major.$minor.$(( patch + 1 ))"
           releaseBranch="release/$nextVersion"
 
+          echo "release-branch=$releaseBranch" >> "$GITHUB_OUTPUT"
+
           echo "Released version: $currentVersion"
           echo "Patch version:    $nextVersion"
           echo "Release branch:   $releaseBranch"
@@ -69,3 +72,8 @@ jobs:
           git commit version.json --message "Set version to '$nextVersion'"
 
           git push origin "$releaseBranch"
+
+      - name: Draft release
+        uses: ./.github/actions/draft-release
+        with:
+          release-branch: ${{ steps.prepare.outputs.release-branch }}

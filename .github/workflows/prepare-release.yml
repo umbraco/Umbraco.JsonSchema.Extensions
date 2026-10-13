@@ -50,6 +50,7 @@ jobs:
         uses: dotnet/nbgv@v0.5.2
 
       - name: Prepare release
+        id: prepare
         env:
           TYPE: ${{ inputs.type }}
         run: |
@@ -87,6 +88,8 @@ jobs:
               ;;
           esac
 
+          echo "release-branch=$releaseBranch" >> "$GITHUB_OUTPUT"
+
           echo "Current version: $currentVersion"
           echo "Release branch:  $releaseBranch"
           echo "Prerelease tag:  ${releaseTag:-none}"
@@ -106,3 +109,8 @@ jobs:
           else
             git push --atomic origin "$GITHUB_REF_NAME" "$releaseBranch"
           fi
+
+      - name: Draft release
+        uses: ./.github/actions/draft-release
+        with:
+          release-branch: ${{ steps.prepare.outputs.release-branch }}
