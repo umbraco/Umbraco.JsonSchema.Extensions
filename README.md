@@ -101,7 +101,7 @@ Generates a JSON schema from a C# type in an assembly. XML documentation comment
 The schema is generated using the System.Text.Json [`JsonSchemaExporter`](https://learn.microsoft.com/en-us/dotnet/standard/serialization/system-text-json/extract-schema), so it follows the System.Text.Json serialization rules (e.g. `[JsonPropertyName]` and `[JsonIgnore]`), with enums as strings. On top of that, the generated schema:
 
 - only includes properties with a public setter, and excludes properties marked with `[Obsolete]` (unless `IncludeObsoleteProperties` is set, in which case they're marked with `x-deprecated`);
-- uses the summary from the XML documentation file next to each assembly (including `<inheritdoc />`) or else the `[Description]` of the property as `description`, falling back to those of its type (an XML documentation file that can't be read is ignored);
+- uses the summary from the XML documentation file next to each assembly (including `<inheritdoc />`, where a `cref` is only resolved from the assembly of the member or its base types and interfaces) or else the `[Description]` of the property as `description`, falling back to those of its type (an XML documentation file that can't be read is ignored);
 - uses the value of `[DefaultValue]` as `default`;
 - allows comma-separated combinations of flags enums and any string for `TimeSpan` values (matching configuration binding).
 

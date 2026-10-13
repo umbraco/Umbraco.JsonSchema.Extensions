@@ -1,3 +1,5 @@
+using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Text.Json.Nodes;
 using Microsoft.Build.Framework;
@@ -41,27 +43,42 @@ public sealed class JsonSchemaGenerate : Microsoft.Build.Utilities.Task
 
         return false;
 #else
+        var assemblyFile = Path.GetFullPath(AssemblyPath);
+        if (!File.Exists(assemblyFile))
+        {
+            Log.LogError("Assembly file not found: {0}", assemblyFile);
+
+            return false;
+        }
+
+        JsonObject schema;
         try
         {
-            var assemblyFile = Path.GetFullPath(AssemblyPath);
-            if (!File.Exists(assemblyFile))
+            // Generate the schema while the assembly is loaded (types can't be used after it's unloaded)
+            using var assembly = new IsolatedAssembly(assemblyFile, message => Log.LogMessage(MessageImportance.Low, "{0}", message));
+            if (!assembly.TryGetType(TypeName, out Type? type))
             {
-                Log.LogError("Assembly file not found: {0}", assemblyFile);
+                Log.LogError("Type '{0}' not found in assembly '{1}'.", TypeName, assemblyFile);
 
                 return false;
             }
 
-            var generator = new UmbracoJsonSchemaGenerator(IncludeObsoleteProperties, message => Log.LogMessage(MessageImportance.Low, "{0}", message));
-            JsonObject schema = generator.Generate(assemblyFile, TypeName);
+            schema = JsonSchemaGenerator.Generate(type, assembly.GetSummary, IncludeObsoleteProperties);
+        }
+        catch (Exception ex)
+        {
+            // Include the messages of inner exceptions, as these are often the most relevant (e.g. for type initialization or invocation errors)
+            Log.LogError("Could not generate JSON schema for type '{0}' from assembly '{1}': {2}", TypeName, assemblyFile, GetMessages(ex));
 
-            // Always write the output (even when unchanged), as its timestamp lets MSBuild skip generation when the assembly
-            // hasn't changed since (incremental builds using Inputs/Outputs)
-            var outputFile = Path.GetFullPath(OutputPath);
+            return false;
+        }
+
+        // Always write the output (even when unchanged), as its timestamp lets MSBuild skip generation when the assembly
+        // hasn't changed since the last generation (incremental builds using Inputs/Outputs)
+        var outputFile = Path.GetFullPath(OutputPath);
+        try
+        {
             JsonFileEditor.Write(outputFile, schema);
-
-            Log.LogMessage(MessageImportance.High, "Generated JSON schema: {0}", outputFile);
-
-            return true;
         }
         catch (JsonFileException ex)
         {
@@ -69,12 +86,23 @@ public sealed class JsonSchemaGenerate : Microsoft.Build.Utilities.Task
 
             return false;
         }
-        catch (System.Exception ex)
-        {
-            Log.LogErrorFromException(ex);
 
-            return false;
-        }
+        Log.LogMessage(MessageImportance.High, "Generated JSON schema: {0}", outputFile);
+
+        return true;
 #endif
     }
+
+#if !NETSTANDARD2_0
+    private static string GetMessages(Exception exception)
+    {
+        var messages = new List<string>();
+        for (Exception? current = exception; current is not null; current = current.InnerException)
+        {
+            messages.Add(current.Message);
+        }
+
+        return string.Join(" ---> ", messages);
+    }
+#endif
 }

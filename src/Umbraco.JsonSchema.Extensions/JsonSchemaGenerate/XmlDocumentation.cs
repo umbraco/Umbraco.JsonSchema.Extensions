@@ -11,8 +11,13 @@ namespace Umbraco.JsonSchema.Extensions;
 
 /// <summary>
 /// Reads summaries from the XML documentation files located next to assemblies, resolving <c>inheritdoc</c> from base
-/// types and interfaces.
+/// types and interfaces, or from the member referenced by its <c>cref</c>.
 /// </summary>
+/// <remarks>
+/// A <c>cref</c> is only resolved from the documentation of the member's own assembly and the assemblies declaring its
+/// base members (base types and interfaces, or the overridden/implemented property), as a <c>cref</c> doesn't specify
+/// the assembly. The referenced member's own <c>inheritdoc</c> isn't resolved.
+/// </remarks>
 internal sealed class XmlDocumentation
 {
     private const int MaxInheritDocDepth = 10;
@@ -194,7 +199,7 @@ internal sealed class XmlDocumentation
 
         if (inheritDoc.Attribute("cref")?.Value is string cref)
         {
-            // Look up the referenced member in the documentation of the assemblies in the type hierarchy
+            // Look up the referenced member in the documentation of this assembly and the assemblies declaring the base members
             IEnumerable<Assembly> assemblies = new[] { member.Module.Assembly }.Concat(GetBaseMembers(member).Select(x => x.Module.Assembly)).Distinct();
             foreach (Assembly assembly in assemblies)
             {

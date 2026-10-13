@@ -13,50 +13,62 @@ using System.Text.RegularExpressions;
 namespace Umbraco.JsonSchema.Extensions;
 
 /// <summary>
-/// Generates JSON schemas using the System.Text.Json <see cref="JsonSchemaExporter" />, including XML documentation
-/// comments as descriptions.
+/// Generates draft-04 JSON schemas from types using the System.Text.Json <see cref="JsonSchemaExporter" />, following
+/// the System.Text.Json serialization rules and adding descriptions, default values and deprecations.
 /// </summary>
-internal sealed class UmbracoJsonSchemaGenerator
+internal static class JsonSchemaGenerator
 {
-    private readonly bool _includeObsoleteProperties;
-    private readonly Action<string>? _logMessage;
-
     /// <summary>
-    /// Initializes a new instance of the <see cref="UmbracoJsonSchemaGenerator" /> class.
+    /// Generates the JSON schema for the specified type.
     /// </summary>
-    /// <param name="includeObsoleteProperties">Whether to include properties marked with <see cref="ObsoleteAttribute" />.</param>
-    /// <param name="logMessage">Logs a message, e.g. when an XML documentation file can't be read and is ignored.</param>
-    public UmbracoJsonSchemaGenerator(bool includeObsoleteProperties = false, Action<string>? logMessage = null)
-    {
-        _includeObsoleteProperties = includeObsoleteProperties;
-        _logMessage = logMessage;
-    }
-
-    /// <summary>
-    /// Loads an assembly from the specified file path, resolves the type, generates the JSON schema,
-    /// and unloads the assembly without locking the file.
-    /// </summary>
-    /// <param name="assemblyFilePath">The path to the assembly file.</param>
-    /// <param name="typeName">The fully qualified type name to generate the schema for.</param>
+    /// <param name="type">The type to generate the schema for.</param>
+    /// <param name="getSummary">Gets the summary of a type, property or field (e.g. from the XML documentation), used as description (falling back to <see cref="DescriptionAttribute" />).</param>
+    /// <param name="includeObsoleteProperties">Whether to include properties marked with <see cref="ObsoleteAttribute" /> (marked as deprecated).</param>
     /// <returns>The generated JSON schema.</returns>
-    public JsonObject Generate(string assemblyFilePath, string typeName)
+    public static JsonObject Generate(Type type, Func<MemberInfo, string?> getSummary, bool includeObsoleteProperties)
     {
-        using var loadContext = new PluginLoadContext(assemblyFilePath);
-        Assembly assembly = loadContext.LoadFromAssemblyFile(assemblyFilePath);
+        var options = new JsonSerializerOptions()
+        {
+            Converters = { new JsonStringEnumConverter() },
+            IgnoreReadOnlyProperties = true,
+            TypeInfoResolver = new DefaultJsonTypeInfoResolver()
+            {
+                Modifiers = { typeInfo => RemoveIgnoredProperties(typeInfo, includeObsoleteProperties) },
+            },
+        };
 
-        Type type = assembly.GetType(typeName, throwOnError: true)!;
+        var exporterOptions = new JsonSchemaExporterOptions()
+        {
+            TransformSchemaNode = (context, schema) =>
+            {
+                JsonObject schemaObject = ToJsonObject(schema);
+                TransformSchemaNode(context, schemaObject, getSummary, options);
 
-        return Generate(type, new XmlDocumentation(loadContext.GetAssemblyPath, _logMessage));
+                return schemaObject;
+            },
+        };
+
+        var schema = ToJsonObject(options.GetJsonSchemaAsNode(type, exporterOptions));
+
+        // The root object itself can't be null
+        if (schema["type"] is JsonArray types && types.Count == 2 && types.Any(x => x?.GetValue<string>() == "null"))
+        {
+            schema["type"] = types.First(x => x?.GetValue<string>() != "null")!.GetValue<string>();
+        }
+
+        schema.Insert(0, "$schema", JsonSchemaDraft.Uri);
+
+        return schema;
     }
 
-    private static void TransformSchemaNode(JsonSchemaExporterContext context, JsonObject schema, XmlDocumentation xmlDocumentation, JsonSerializerOptions options)
+    private static void TransformSchemaNode(JsonSchemaExporterContext context, JsonObject schema, Func<MemberInfo, string?> getSummary, JsonSerializerOptions options)
     {
         ICustomAttributeProvider? attributeProvider = context.PropertyInfo?.AttributeProvider;
         Type type = Nullable.GetUnderlyingType(context.TypeInfo.Type) ?? context.TypeInfo.Type;
 
         // Use the property description, falling back to the type description
-        string? description = (attributeProvider is MemberInfo member ? GetDescription(member, xmlDocumentation) : null)
-            ?? GetDescription(type, xmlDocumentation);
+        string? description = (attributeProvider is MemberInfo member ? GetDescription(member, getSummary) : null)
+            ?? GetDescription(type, getSummary);
         if (description is not null && !schema.ContainsKey("description"))
         {
             schema.Insert(0, "description", description);
@@ -106,8 +118,8 @@ internal sealed class UmbracoJsonSchemaGenerator
             .Distinct()
             .ToList();
 
-    private static string? GetDescription(MemberInfo member, XmlDocumentation xmlDocumentation)
-        => xmlDocumentation.GetSummary(member)
+    private static string? GetDescription(MemberInfo member, Func<MemberInfo, string?> getSummary)
+        => getSummary(member)
             ?? (member.GetCustomAttributes(typeof(DescriptionAttribute), inherit: true) is [DescriptionAttribute { Description.Length: > 0 } description, ..] ? description.Description : null);
 
     private static JsonObject ToJsonObject(JsonNode schema)
@@ -121,43 +133,7 @@ internal sealed class UmbracoJsonSchemaGenerator
             _ => new JsonObject(),
         };
 
-    private JsonObject Generate(Type type, XmlDocumentation xmlDocumentation)
-    {
-        var options = new JsonSerializerOptions()
-        {
-            Converters = { new JsonStringEnumConverter() },
-            IgnoreReadOnlyProperties = true,
-            TypeInfoResolver = new DefaultJsonTypeInfoResolver()
-            {
-                Modifiers = { RemoveIgnoredProperties },
-            },
-        };
-
-        var exporterOptions = new JsonSchemaExporterOptions()
-        {
-            TransformSchemaNode = (context, schema) =>
-            {
-                JsonObject schemaObject = ToJsonObject(schema);
-                TransformSchemaNode(context, schemaObject, xmlDocumentation, options);
-
-                return schemaObject;
-            },
-        };
-
-        var schema = ToJsonObject(options.GetJsonSchemaAsNode(type, exporterOptions));
-
-        // The root object itself can't be null
-        if (schema["type"] is JsonArray types && types.Count == 2 && types.Any(x => x?.GetValue<string>() == "null"))
-        {
-            schema["type"] = types.First(x => x?.GetValue<string>() != "null")!.GetValue<string>();
-        }
-
-        schema.Insert(0, "$schema", JsonSchemaDraft.Uri);
-
-        return schema;
-    }
-
-    private void RemoveIgnoredProperties(JsonTypeInfo typeInfo)
+    private static void RemoveIgnoredProperties(JsonTypeInfo typeInfo, bool includeObsoleteProperties)
     {
         if (typeInfo.Kind != JsonTypeInfoKind.Object)
         {
@@ -171,7 +147,7 @@ internal sealed class UmbracoJsonSchemaGenerator
             // Remove properties without a public setter (read-only or non-public, e.g. internal), as these aren't
             // (de)serialized by System.Text.Json and read-only removal isn't implemented by the exporter
             var isReadOnly = typeInfo.Options.IgnoreReadOnlyProperties && attributeProvider is PropertyInfo property && property.SetMethod?.IsPublic is not true;
-            var isObsolete = !_includeObsoleteProperties && attributeProvider?.IsDefined(typeof(ObsoleteAttribute), inherit: true) is true;
+            var isObsolete = !includeObsoleteProperties && attributeProvider?.IsDefined(typeof(ObsoleteAttribute), inherit: true) is true;
             if (isReadOnly || isObsolete)
             {
                 typeInfo.Properties.RemoveAt(i);
