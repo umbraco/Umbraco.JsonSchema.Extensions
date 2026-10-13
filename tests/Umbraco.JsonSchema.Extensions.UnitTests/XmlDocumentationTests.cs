@@ -22,6 +22,7 @@ public class XmlDocumentationTests
     [TestCase(typeof(DocumentedType), nameof(DocumentedType.Field), "A documented field.")]
     [TestCase(typeof(GenericType<int>), null, "A generic type of T.")]
     [TestCase(typeof(DocumentedType), nameof(DocumentedType.References), "References DocumentedType, DocumentedType.Property, List,\nString.Join, null and https://umbraco.com.")]
+    [TestCase(typeof(DocumentedType), nameof(DocumentedType.AdjacentElements), "Use DocumentedType DocumentedType.Property or a b.")]
     [TestCase(typeof(DocumentedType), nameof(DocumentedType.Paragraphs), "First paragraph\ncontinues here.\n\nSecond paragraph.\n\nBefore break\nafter break.")]
     [TestCase(typeof(DocumentedType), nameof(DocumentedType.ConsecutiveParagraphs), "First.\n\nSecond.")]
     [TestCase(typeof(DocumentedType), nameof(DocumentedType.Undocumented), null)]
@@ -68,6 +69,11 @@ public class XmlDocumentationTests
         /// <see cref="string.Join(string, string[])" />, <see langword="null" /> and <see href="https://umbraco.com" />.
         /// </summary>
         public string? References { get; set; }
+
+        /// <summary>
+        /// Use <see cref="DocumentedType" /> <see cref="Property" /> or <c>a</c> <c>b</c>.
+        /// </summary>
+        public string? AdjacentElements { get; set; }
 
         /// <summary>
         /// First paragraph

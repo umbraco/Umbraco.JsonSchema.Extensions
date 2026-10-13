@@ -214,7 +214,8 @@ internal sealed class XmlDocumentation
             string? xmlDocsPath = string.IsNullOrEmpty(assemblyPath) ? null : Path.ChangeExtension(assemblyPath, ".xml");
             if (xmlDocsPath is not null && File.Exists(xmlDocsPath))
             {
-                foreach (XElement member in XDocument.Load(xmlDocsPath).Root?.Element("members")?.Elements("member") ?? [])
+                // Preserve whitespace between elements (e.g. the space in <c>a</c> <c>b</c>), which is otherwise dropped
+                foreach (XElement member in XDocument.Load(xmlDocsPath, LoadOptions.PreserveWhitespace).Root?.Element("members")?.Elements("member") ?? [])
                 {
                     if (member.Attribute("name")?.Value is string name)
                     {
