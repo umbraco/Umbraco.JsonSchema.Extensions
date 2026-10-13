@@ -51,7 +51,7 @@ public sealed class JsonSchemaGenerate : Microsoft.Build.Utilities.Task
                 return false;
             }
 
-            var generator = new UmbracoJsonSchemaGenerator(IncludeObsoleteProperties);
+            var generator = new UmbracoJsonSchemaGenerator(IncludeObsoleteProperties, message => Log.LogMessage(MessageImportance.Low, "{0}", message));
             JsonObject schema = generator.Generate(assemblyFile, TypeName);
 
             // Always write the output (even when unchanged), as its timestamp lets MSBuild skip generation when the assembly

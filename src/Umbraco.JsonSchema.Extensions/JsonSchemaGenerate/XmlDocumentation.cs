@@ -4,6 +4,7 @@ using System.IO;
 using System.Linq;
 using System.Reflection;
 using System.Text;
+using System.Xml;
 using System.Xml.Linq;
 
 namespace Umbraco.JsonSchema.Extensions;
@@ -17,14 +18,19 @@ internal sealed class XmlDocumentation
     private const int MaxInheritDocDepth = 10;
 
     private readonly Func<Assembly, string?> _getAssemblyPath;
+    private readonly Action<string>? _logMessage;
     private readonly Dictionary<Assembly, Dictionary<string, XElement>> _members = [];
 
     /// <summary>
     /// Initializes a new instance of the <see cref="XmlDocumentation" /> class.
     /// </summary>
     /// <param name="getAssemblyPath">Gets the file path of an assembly (the XML documentation file is expected next to it).</param>
-    public XmlDocumentation(Func<Assembly, string?> getAssemblyPath)
-        => _getAssemblyPath = getAssemblyPath;
+    /// <param name="logMessage">Logs a message, e.g. when an XML documentation file can't be read and is ignored.</param>
+    public XmlDocumentation(Func<Assembly, string?> getAssemblyPath, Action<string>? logMessage = null)
+    {
+        _getAssemblyPath = getAssemblyPath;
+        _logMessage = logMessage;
+    }
 
     /// <summary>
     /// Gets the summary of the specified type, property or field.
@@ -214,8 +220,7 @@ internal sealed class XmlDocumentation
             string? xmlDocsPath = string.IsNullOrEmpty(assemblyPath) ? null : Path.ChangeExtension(assemblyPath, ".xml");
             if (xmlDocsPath is not null && File.Exists(xmlDocsPath))
             {
-                // Preserve whitespace between elements (e.g. the space in <c>a</c> <c>b</c>), which is otherwise dropped
-                foreach (XElement member in XDocument.Load(xmlDocsPath, LoadOptions.PreserveWhitespace).Root?.Element("members")?.Elements("member") ?? [])
+                foreach (XElement member in LoadMemberElements(xmlDocsPath))
                 {
                     if (member.Attribute("name")?.Value is string name)
                     {
@@ -228,5 +233,21 @@ internal sealed class XmlDocumentation
         }
 
         return members;
+    }
+
+    private IEnumerable<XElement> LoadMemberElements(string xmlDocsPath)
+    {
+        try
+        {
+            // Preserve whitespace between elements (e.g. the space in <c>a</c> <c>b</c>), which is otherwise dropped
+            return XDocument.Load(xmlDocsPath, LoadOptions.PreserveWhitespace).Root?.Element("members")?.Elements("member") ?? [];
+        }
+        catch (Exception ex) when (ex is XmlException or IOException or UnauthorizedAccessException)
+        {
+            // Descriptions are optional, so ignore a file that can't be read (e.g. a malformed or unrelated XML file)
+            _logMessage?.Invoke($"Ignoring XML documentation file '{xmlDocsPath}', as it can't be read: {ex.Message}");
+
+            return [];
+        }
     }
 }

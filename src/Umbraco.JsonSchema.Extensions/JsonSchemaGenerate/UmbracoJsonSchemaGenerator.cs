@@ -19,13 +19,18 @@ namespace Umbraco.JsonSchema.Extensions;
 internal sealed class UmbracoJsonSchemaGenerator
 {
     private readonly bool _includeObsoleteProperties;
+    private readonly Action<string>? _logMessage;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="UmbracoJsonSchemaGenerator" /> class.
     /// </summary>
     /// <param name="includeObsoleteProperties">Whether to include properties marked with <see cref="ObsoleteAttribute" />.</param>
-    public UmbracoJsonSchemaGenerator(bool includeObsoleteProperties = false)
-        => _includeObsoleteProperties = includeObsoleteProperties;
+    /// <param name="logMessage">Logs a message, e.g. when an XML documentation file can't be read and is ignored.</param>
+    public UmbracoJsonSchemaGenerator(bool includeObsoleteProperties = false, Action<string>? logMessage = null)
+    {
+        _includeObsoleteProperties = includeObsoleteProperties;
+        _logMessage = logMessage;
+    }
 
     /// <summary>
     /// Loads an assembly from the specified file path, resolves the type, generates the JSON schema,
@@ -41,7 +46,7 @@ internal sealed class UmbracoJsonSchemaGenerator
 
         Type type = assembly.GetType(typeName, throwOnError: true)!;
 
-        return Generate(type, new XmlDocumentation(loadContext.GetAssemblyPath));
+        return Generate(type, new XmlDocumentation(loadContext.GetAssemblyPath, _logMessage));
     }
 
     private static void TransformSchemaNode(JsonSchemaExporterContext context, JsonObject schema, XmlDocumentation xmlDocumentation, JsonSerializerOptions options)

@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Reflection;
 using NUnit.Framework;
 
@@ -47,6 +48,33 @@ public class XmlDocumentationTests
         var sut = new XmlDocumentation(_ => null);
 
         Assert.That(sut.GetSummary(typeof(DocumentedType)), Is.Null);
+    }
+
+    /// <summary>
+    /// An XML documentation file that can't be read is ignored (once), as descriptions are optional.
+    /// </summary>
+    [Test]
+    public void GetSummary_UnreadableXmlDocumentationFile_LogsMessageAndReturnsNull()
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), "XmlDocumentationTests_" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(tempDir);
+        try
+        {
+            var assemblyPath = Path.Combine(tempDir, "Unreadable.dll");
+            File.WriteAllText(Path.ChangeExtension(assemblyPath, ".xml"), "<!DOCTYPE doc><doc>");
+
+            var messages = new List<string>();
+            var sut = new XmlDocumentation(_ => assemblyPath, messages.Add);
+
+            Assert.That(sut.GetSummary(typeof(DocumentedType)), Is.Null);
+            Assert.That(sut.GetSummary(typeof(DocumentedType).GetProperty(nameof(DocumentedType.Property))!), Is.Null);
+            Assert.That(messages, Has.Count.EqualTo(1));
+            Assert.That(messages[0], Does.Contain("Unreadable.xml"));
+        }
+        finally
+        {
+            Directory.Delete(tempDir, recursive: true);
+        }
     }
 
     /// <summary>
