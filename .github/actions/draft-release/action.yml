@@ -3,7 +3,7 @@ description: Creates or updates the draft GitHub Release of a release branch, so
 
 inputs:
   release-branch:
-    description: The release branch (release/X.Y.Z) to draft the release for. Its version.json must be available locally.
+    description: The release branch (release/X.Y.Z) to draft the release for. It must be available locally, with Nerdbank.GitVersioning (nbgv) set up.
     required: true
   github-token:
     description: The token used to create or update the release.
@@ -20,7 +20,8 @@ runs:
       run: |
         set -euo pipefail
 
-        version=$(git show "$RELEASE_BRANCH:version.json" | jq -r '.version // empty')
+        # The version the release branch builds as once it's tagged (a public release), without the commit suffix of a branch build
+        version=$(nbgv get-version "$RELEASE_BRANCH" --public-release -v NuGetPackageVersion)
         if ! printf '%s' "$version" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$'; then
           echo "::error::$RELEASE_BRANCH is at version '${version:-<missing>}', which is not a '<major>.<minor>.<patch>[-<label>]' version."
           exit 1
