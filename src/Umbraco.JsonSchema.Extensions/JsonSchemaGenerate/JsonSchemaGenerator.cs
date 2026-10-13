@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
+using System.ComponentModel.DataAnnotations;
 using System.Linq;
 using System.Reflection;
 using System.Text.Json;
@@ -14,7 +15,7 @@ namespace Umbraco.JsonSchema.Extensions;
 
 /// <summary>
 /// Generates draft-04 JSON schemas from types using the System.Text.Json <see cref="JsonSchemaExporter" />, following
-/// the System.Text.Json serialization rules and adding descriptions, default values and deprecations.
+/// the System.Text.Json serialization rules and adding descriptions, default values, deprecations and required properties.
 /// </summary>
 internal static class JsonSchemaGenerator
 {
@@ -33,7 +34,11 @@ internal static class JsonSchemaGenerator
             IgnoreReadOnlyProperties = true,
             TypeInfoResolver = new DefaultJsonTypeInfoResolver()
             {
-                Modifiers = { typeInfo => RemoveIgnoredProperties(typeInfo, includeObsoleteProperties) },
+                Modifiers =
+                {
+                    typeInfo => RemoveIgnoredProperties(typeInfo, includeObsoleteProperties),
+                    SetRequiredProperties,
+                },
             },
         };
 
@@ -152,6 +157,21 @@ internal static class JsonSchemaGenerator
             {
                 typeInfo.Properties.RemoveAt(i);
             }
+        }
+    }
+
+    private static void SetRequiredProperties(JsonTypeInfo typeInfo)
+    {
+        if (typeInfo.Kind != JsonTypeInfoKind.Object)
+        {
+            return;
+        }
+
+        // Only mark properties with [Required] as required, as the required modifier (and [JsonRequired]) only enforces
+        // the property is set when constructing or deserializing the object, which configuration binding doesn't do
+        foreach (JsonPropertyInfo property in typeInfo.Properties)
+        {
+            property.IsRequired = property.AttributeProvider?.IsDefined(typeof(RequiredAttribute), inherit: true) is true;
         }
     }
 }

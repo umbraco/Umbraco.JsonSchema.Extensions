@@ -103,6 +103,7 @@ The schema is generated using the System.Text.Json [`JsonSchemaExporter`](https:
 - only includes properties with a public setter, and excludes properties marked with `[Obsolete]` (unless `IncludeObsoleteProperties` is set, in which case they're marked with `x-deprecated`);
 - uses the summary from the XML documentation file next to each assembly (including `<inheritdoc />`, where a `cref` is only resolved from the assembly of the member or its base types and interfaces) or else the `[Description]` of the property as `description`, falling back to those of its type (an XML documentation file that can't be read is ignored);
 - uses the value of `[DefaultValue]` as `default`;
+- only marks properties with `[Required]` (from `System.ComponentModel.DataAnnotations`) as `required`, not those using the `required` modifier or `[JsonRequired]` (as configuration binding doesn't enforce these);
 - allows comma-separated combinations of flags enums and any string for `TimeSpan` values (matching configuration binding).
 
 Nested types are included inline (only recursive types use a `$ref`, pointing to the enclosing schema of the same type), so the schema doesn't contain `definitions`.
