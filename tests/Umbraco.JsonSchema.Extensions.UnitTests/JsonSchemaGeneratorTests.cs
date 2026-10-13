@@ -1,5 +1,6 @@
 using System;
 using System.ComponentModel;
+using System.ComponentModel.DataAnnotations;
 using System.Linq;
 using System.Reflection;
 using System.Text.Json.Nodes;
@@ -175,6 +176,18 @@ public class JsonSchemaGeneratorTests
         Assert.That(properties["Null"]!.AsObject().ContainsKey("default"), Is.True);
         Assert.That(properties["Null"]!["default"], Is.Null);
         Assert.That(properties["Unconvertible"]!.AsObject().ContainsKey("default"), Is.False);
+    }
+
+    /// <summary>
+    /// Only properties marked with <see cref="RequiredAttribute" /> are required, not those using the <c>required</c>
+    /// modifier or <see cref="JsonRequiredAttribute" />.
+    /// </summary>
+    [Test]
+    public void Generate_RequiredProperties_OnlyUseRequiredAttribute()
+    {
+        JsonObject schema = Generate<RequiredModel>();
+
+        Assert.That(schema["required"]!.AsArray().Select(x => x?.GetValue<string>()), Is.EqualTo(new[] { "Attribute", "ModifierAndAttribute" }));
     }
 
     /// <summary>
@@ -356,6 +369,22 @@ public class JsonSchemaGeneratorTests
 
         [DefaultValue(typeof(int), "not-a-number")]
         public int Unconvertible { get; set; }
+    }
+
+    private sealed class RequiredModel
+    {
+        [Required]
+        public string? Attribute { get; set; }
+
+        public required string Modifier { get; set; }
+
+        [Required]
+        public required string ModifierAndAttribute { get; set; }
+
+        [JsonRequired]
+        public string? JsonAttribute { get; set; }
+
+        public string? Optional { get; set; }
     }
 
     private sealed class AnyModel
