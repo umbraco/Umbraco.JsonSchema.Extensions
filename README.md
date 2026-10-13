@@ -137,3 +137,12 @@ Nested types are included inline (only recursive types use a `$ref`, pointing to
   </ItemGroup>
 </Target>
 ```
+
+## Contributing
+
+- `develop` is the development branch and the default branch of the repository.
+- `main` holds the released code, so a patch can be branched from what was actually released rather than from whatever has since landed on `develop`.
+- Feature and fix branches are created from `develop`, named `feature/name` or `bugfix/name`, and merged back through a pull request.
+- `release/X.Y.Z` branches are created from `develop` for a minor release, or from `main` for a patch. Once the release is published, `main` is set to the released commit, the release branch is merged into `develop`, and the release branch is deleted.
+
+See [Releasing](docs/releasing.md) for how a release is prepared, published and merged back.
