@@ -356,10 +356,10 @@ public class JsonSchemaGenerateTests
     }
 
     /// <summary>
-    /// The generated schema includes XML doc descriptions of properties declared on or inherited from a base class.
+    /// The generated schema falls back to the <see cref="System.ComponentModel.DescriptionAttribute" /> when a property has no XML documentation.
     /// </summary>
     [Test]
-    public void Execute_IncludesInheritedPropertyDescriptions()
+    public void Execute_FallsBackToDescriptionAttribute()
     {
         var outputPath = TempFile("schema.json");
         var sut = CreateTask(outputPath);
@@ -367,25 +367,8 @@ public class JsonSchemaGenerateTests
         sut.Execute();
 
         var properties = ParseSchema(outputPath)["properties"]!;
-        Assert.That(properties["BaseValue"]!["description"]?.GetValue<string>(), Is.EqualTo("A property declared on the base class."));
-        Assert.That(properties["VirtualValue"]!["description"]?.GetValue<string>(), Is.EqualTo("A virtual property documented on the base class."));
-    }
-
-    /// <summary>
-    /// The generated schema renders XML doc references as text and preserves line breaks.
-    /// </summary>
-    [Test]
-    public void Execute_RendersDescriptionMarkup()
-    {
-        var outputPath = TempFile("schema.json");
-        var sut = CreateTask(outputPath);
-
-        sut.Execute();
-
-        var properties = ParseSchema(outputPath)["properties"]!;
-        Assert.That(
-            properties["Referencing"]!["description"]?.GetValue<string>(),
-            Is.EqualTo("A property referencing TestAddress, TestAddress.City and null,\nspanning multiple lines."));
+        Assert.That(properties["AttributeDescribed"]!["description"]?.GetValue<string>(), Is.EqualTo("A property described by an attribute."));
+        Assert.That(properties["BothDescribed"]!["description"]?.GetValue<string>(), Is.EqualTo("A property described by both XML documentation and an attribute."));
     }
 
     /// <summary>
@@ -559,11 +542,14 @@ public class JsonSchemaGenerateTests
         [JsonIgnore]
         public string IgnoredValue { get; set; } = string.Empty;
 
+        [System.ComponentModel.Description("A property described by an attribute.")]
+        public string? AttributeDescribed { get; set; }
+
         /// <summary>
-        /// A property referencing <see cref="TestAddress" />, <see cref="TestAddress.City" /> and <see langword="null" />,
-        /// spanning multiple lines.
+        /// A property described by both XML documentation and an attribute.
         /// </summary>
-        public string? Referencing { get; set; }
+        [System.ComponentModel.Description("The attribute description.")]
+        public string? BothDescribed { get; set; }
 
         /// <inheritdoc />
         public override string VirtualValue { get; set; } = string.Empty;
