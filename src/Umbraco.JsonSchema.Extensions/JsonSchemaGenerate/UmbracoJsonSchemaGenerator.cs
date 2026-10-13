@@ -18,8 +18,6 @@ namespace Umbraco.JsonSchema.Extensions;
 /// </summary>
 internal sealed class UmbracoJsonSchemaGenerator
 {
-    private const string SchemaUri = "http://json-schema.org/draft-04/schema#";
-
     private readonly bool _includeObsoleteProperties;
 
     /// <summary>
@@ -146,7 +144,7 @@ internal sealed class UmbracoJsonSchemaGenerator
             schema["type"] = types.First(x => x?.GetValue<string>() != "null")!.GetValue<string>();
         }
 
-        schema.Insert(0, "$schema", SchemaUri);
+        schema.Insert(0, "$schema", JsonSchemaDraft.Uri);
 
         return schema;
     }
