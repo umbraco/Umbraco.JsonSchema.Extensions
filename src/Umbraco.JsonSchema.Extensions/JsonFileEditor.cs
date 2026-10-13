@@ -103,13 +103,32 @@ internal static class JsonFileEditor
     /// <param name="filePath">The path to the JSON file.</param>
     /// <param name="document">The JSON document to write.</param>
     /// <remarks>
-    /// The parent directory is created when it doesn't exist and the file is exclusively locked while writing.
+    /// The parent directory is created when it doesn't exist and the file is exclusively locked while writing. When
+    /// writing fails, the partially written file is removed.
     /// </remarks>
-    /// <exception cref="JsonFileException">The file can't be created.</exception>
+    /// <exception cref="JsonFileException">The file can't be created or written.</exception>
     public static void Write(string filePath, JsonNode document)
     {
-        using FileStream fs = Open(filePath, FileMode.Create);
-        WriteTo(fs, document);
+        FileStream fs = Open(filePath, FileMode.Create);
+        try
+        {
+            using (fs)
+            {
+                WriteTo(fs, document);
+            }
+        }
+        catch (Exception ex)
+        {
+            // Remove the partially written file, so it can't be mistaken for complete output (e.g. by incremental builds)
+            TryDelete(filePath);
+
+            if (ex is IOException or UnauthorizedAccessException)
+            {
+                throw new JsonFileException(filePath, $"The file can't be written: {ex.Message}", ex);
+            }
+
+            throw;
+        }
     }
 
     private static FileStream Open(string filePath, FileMode mode)
@@ -130,6 +149,18 @@ internal static class JsonFileEditor
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
             throw new JsonFileException(filePath, $"The file can't be {(mode is FileMode.Open ? "opened" : "created")}: {ex.Message}", ex);
+        }
+    }
+
+    private static void TryDelete(string filePath)
+    {
+        try
+        {
+            File.Delete(filePath);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            // Ignore, as the exception that caused the removal is more relevant
         }
     }
 

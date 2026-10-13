@@ -258,6 +258,18 @@ public class JsonFileEditorTests
         Assert.That(File.ReadAllText(writtenPath), Is.EqualTo(File.ReadAllText(updatedPath)));
     }
 
+    /// <summary>
+    /// When writing a document fails, the partially written file is removed.
+    /// </summary>
+    [Test]
+    public void Write_Fails_RemovesPartiallyWrittenFile()
+    {
+        var path = WriteJsonFile("""{"foo":"bar"}""");
+
+        Assert.Throws<InvalidOperationException>(() => JsonFileEditor.Write(path, new JsonObject { ["foo"] = JsonValue.Create(new ThrowingValue()) }));
+        Assert.That(path, Does.Not.Exist);
+    }
+
     private string WriteJsonFile(string json, string name = "test.json")
     {
         var path = Path.Combine(_tempDir, name);
@@ -268,4 +280,9 @@ public class JsonFileEditorTests
 
     private static JsonNode ReadJsonFile(string path)
         => JsonNode.Parse(File.ReadAllText(path))!;
+
+    private sealed class ThrowingValue
+    {
+        public string Value => throw new InvalidOperationException();
+    }
 }
