@@ -289,6 +289,28 @@ public class JsonSchemaGenerateTests
     }
 
     /// <summary>
+    /// The generated schema applies the time span and flags enum adjustments to nullable properties as well.
+    /// </summary>
+    [Test]
+    public void Execute_NullablePropertiesUseUnderlyingTypeAdjustments()
+    {
+        var outputPath = TempFile("schema.json");
+        var sut = CreateTask(outputPath);
+
+        sut.Execute();
+
+        var properties = ParseSchema(outputPath)["properties"]!;
+        var timeoutSchema = properties["NullableTimeout"]!.AsObject();
+        Assert.That(timeoutSchema["type"]!.ToJsonString(), Does.Contain("null"));
+        Assert.That(timeoutSchema.ContainsKey("pattern"), Is.False);
+
+        var flagsSchema = properties["NullableFlags"]!.AsObject();
+        Assert.That(flagsSchema["type"]!.ToJsonString(), Does.Contain("null"));
+        var pattern = new Regex(flagsSchema["anyOf"]![1]!["pattern"]!.GetValue<string>());
+        Assert.That(pattern.IsMatch("Read, Write"), Is.True);
+    }
+
+    /// <summary>
     /// The generated schema marks obsolete properties as deprecated when included.
     /// </summary>
     [Test]
@@ -403,6 +425,25 @@ public class JsonSchemaGenerateTests
     }
 
     /// <summary>
+    /// The generated schema includes descriptions from the XML documentation of dependency assemblies (loaded from the
+    /// directory of the assembly).
+    /// </summary>
+    [Test]
+    public void Execute_IncludesDescriptionsFromDependencyAssemblies()
+    {
+        var outputPath = TempFile("schema.json");
+        var sut = CreateTask(outputPath);
+        sut.TypeName = typeof(DependencyModel).FullName!;
+
+        Assert.That(sut.Execute(), Is.True);
+
+        var properties = ParseSchema(outputPath)["properties"]!;
+        Assert.That(
+            properties["Dependency"]!["description"]?.GetValue<string>(),
+            Is.EqualTo("Updates the value of a property in a JSON file using a JSON path expression."));
+    }
+
+    /// <summary>
     /// The task returns false when the assembly file does not exist.
     /// </summary>
     [Test]
@@ -508,6 +549,14 @@ public class JsonSchemaGenerateTests
     }
 
     /// <summary>
+    /// A model with a property of a type declared in a dependency assembly.
+    /// </summary>
+    private sealed class DependencyModel
+    {
+        public JsonPathUpdateValue? Dependency { get; set; }
+    }
+
+    /// <summary>
     /// Primary test model exercising all schema generation scenarios.
     /// </summary>
     private sealed class TestModel : TestModelBase
@@ -574,6 +623,10 @@ public class JsonSchemaGenerateTests
         public string IgnoredValue { get; set; } = string.Empty;
 
         public object? Anything { get; set; }
+
+        public TimeSpan? NullableTimeout { get; set; }
+
+        public TestFlags? NullableFlags { get; set; }
 
         [DefaultValue(typeof(int), "not-a-number")]
         public int UnconvertibleDefault { get; set; }
