@@ -100,7 +100,34 @@ public class JsonPathTests
     [TestCase("$[\"foo']")]
     [TestCase("$.foo]")]
     public void Parse_MalformedPath_Throws(string path)
-        => Assert.Throws<FormatException>(() => JsonPath.Parse(path));
+    {
+        var ex = Assert.Throws<JsonPathException>(() => JsonPath.Parse(path));
+
+        Assert.That(ex!.Path, Is.EqualTo(path));
+    }
+
+    /// <summary>
+    /// A path with an array index can't be parsed when array indices aren't allowed.
+    /// </summary>
+    /// <param name="path">The JSON path.</param>
+    [TestCase("$[0]")]
+    [TestCase("$.items[0].name")]
+    public void Parse_ArrayIndexNotAllowed_Throws(string path)
+    {
+        var ex = Assert.Throws<JsonPathException>(() => JsonPath.Parse(path, allowArrayIndices: false));
+
+        Assert.That(ex!.Path, Is.EqualTo(path));
+    }
+
+    /// <summary>
+    /// A path with only property names (including quoted numeric names) can be parsed when array indices aren't allowed.
+    /// </summary>
+    /// <param name="path">The JSON path.</param>
+    [TestCase("")]
+    [TestCase("$.a['b'].c")]
+    [TestCase("$['0']")]
+    public void Parse_PropertyNamesOnly_ArrayIndexNotAllowed_Succeeds(string path)
+        => Assert.DoesNotThrow(() => JsonPath.Parse(path, allowArrayIndices: false));
 
     /// <summary>
     /// Getting an object creates the intermediate objects that don't exist.
@@ -142,6 +169,8 @@ public class JsonPathTests
     {
         JsonObject root = JsonNode.Parse(Json)!.AsObject();
 
-        Assert.Throws<InvalidOperationException>(() => JsonPath.Parse(path).GetOrCreateObject(root));
+        var ex = Assert.Throws<JsonPathException>(() => JsonPath.Parse(path).GetOrCreateObject(root));
+
+        Assert.That(ex!.Path, Is.EqualTo(path));
     }
 }
