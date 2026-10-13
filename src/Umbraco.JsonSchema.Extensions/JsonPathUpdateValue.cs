@@ -1,4 +1,3 @@
-using System;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using Microsoft.Build.Framework;
@@ -47,7 +46,7 @@ public class JsonPathUpdateValue : Microsoft.Build.Utilities.Task
         {
             path = JsonPath.Parse(Path);
         }
-        catch (FormatException ex)
+        catch (JsonPathException ex)
         {
             Log.LogError("Invalid Path '{0}' for JSON file '{1}': {2}", Path, JsonFile, ex.Message);
             return false;

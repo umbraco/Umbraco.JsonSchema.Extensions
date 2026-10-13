@@ -69,13 +69,14 @@ public class JsonSchemaAddReferences : Microsoft.Build.Utilities.Task
             return false;
         }
 
-        // Parse the target path before opening the JSON schema file, so an invalid path fails the build without touching the file
+        // Parse the target path (only allowing property names) before opening the JSON schema file, so an invalid path fails
+        // the build without touching the file
         JsonPath targetPath;
         try
         {
-            targetPath = JsonPath.Parse(TargetPath);
+            targetPath = JsonPath.Parse(TargetPath, allowArrayIndices: false);
         }
-        catch (FormatException ex)
+        catch (JsonPathException ex)
         {
             Log.LogError("Invalid TargetPath '{0}' for JSON schema file '{1}': {2}", TargetPath, JsonSchemaFile, ex.Message);
             return false;
@@ -97,8 +98,9 @@ public class JsonSchemaAddReferences : Microsoft.Build.Utilities.Task
             Log.LogError("Could not update JSON schema file '{0}': {1}", ex.FilePath, ex.Message);
             return false;
         }
-        catch (InvalidOperationException ex)
+        catch (JsonPathException ex)
         {
+            // The target path addresses an existing value that isn't an object
             Log.LogError("Invalid TargetPath '{0}' for JSON schema file '{1}': {2}", TargetPath, JsonSchemaFile, ex.Message);
             return false;
         }

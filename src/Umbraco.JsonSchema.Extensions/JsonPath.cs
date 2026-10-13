@@ -1,4 +1,3 @@
-using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Text.Json.Nodes;
@@ -29,11 +28,12 @@ internal sealed class JsonPath
     /// Parses the specified JSON path.
     /// </summary>
     /// <param name="path">The JSON path.</param>
+    /// <param name="allowArrayIndices">Whether array indices are allowed (e.g. not when only property names can be used).</param>
     /// <returns>
     /// The parsed JSON path.
     /// </returns>
-    /// <exception cref="FormatException">The JSON path is malformed.</exception>
-    public static JsonPath Parse(string path)
+    /// <exception cref="JsonPathException">The JSON path is malformed or contains an array index that isn't allowed.</exception>
+    public static JsonPath Parse(string path, bool allowArrayIndices = true)
     {
         var segments = new List<Segment>();
 
@@ -53,8 +53,13 @@ internal sealed class JsonPath
             {
                 '.' => ReadPropertyName(path, i + 1, segments),
                 '[' => ReadBracket(path, i + 1, segments),
-                _ => throw new FormatException($"Expected '.' or '[' at index {i}.")
+                _ => throw new JsonPathException(path, $"Expected '.' or '[' at index {i}.")
             };
+        }
+
+        if (!allowArrayIndices && segments.Exists(x => x.PropertyName is null))
+        {
+            throw new JsonPathException(path, "Array indices are not supported.");
         }
 
         return new JsonPath(path, segments.ToArray());
@@ -109,7 +114,7 @@ internal sealed class JsonPath
     /// <returns>
     /// The object this path addresses, or <paramref name="root" /> itself when this path addresses the root.
     /// </returns>
-    /// <exception cref="InvalidOperationException">This path contains an array index or addresses an existing value that is not a JSON object.</exception>
+    /// <exception cref="JsonPathException">This path contains an array index or addresses an existing value that is not a JSON object.</exception>
     public JsonObject GetOrCreateObject(JsonObject root)
     {
         JsonObject current = root;
@@ -117,13 +122,13 @@ internal sealed class JsonPath
         {
             if (segment.PropertyName is null)
             {
-                throw new InvalidOperationException("Array indices are not supported.");
+                throw new JsonPathException(_path, "Array indices are not supported.");
             }
 
             if (current.TryGetPropertyValue(segment.PropertyName, out JsonNode? child))
             {
                 current = child as JsonObject
-                    ?? throw new InvalidOperationException($"Segment '{segment.PropertyName}' exists but is not a JSON object.");
+                    ?? throw new JsonPathException(_path, $"Segment '{segment.PropertyName}' exists but is not a JSON object.");
             }
             else
             {
@@ -149,7 +154,7 @@ internal sealed class JsonPath
 
         if (end == start)
         {
-            throw new FormatException($"Expected a property name at index {start}.");
+            throw new JsonPathException(path, $"Expected a property name at index {start}.");
         }
 
         segments.Add(Segment.Property(path.Substring(start, end - start)));
@@ -166,7 +171,7 @@ internal sealed class JsonPath
             int close = path.IndexOf(quote, start + 1);
             if (close < 0 || close + 1 >= path.Length || path[close + 1] != ']')
             {
-                throw new FormatException($"Expected {quote}] to close the property name at index {start}.");
+                throw new JsonPathException(path, $"Expected {quote}] to close the property name at index {start}.");
             }
 
             segments.Add(Segment.Property(path.Substring(start + 1, close - start - 1)));
@@ -178,12 +183,12 @@ internal sealed class JsonPath
         int end = path.IndexOf(']', start);
         if (end < 0)
         {
-            throw new FormatException($"Expected ] to close the bracket at index {start - 1}.");
+            throw new JsonPathException(path, $"Expected ] to close the bracket at index {start - 1}.");
         }
 
         if (!int.TryParse(path.Substring(start, end - start), NumberStyles.None, CultureInfo.InvariantCulture, out int index))
         {
-            throw new FormatException($"Expected a non-negative array index or a quoted property name at index {start}.");
+            throw new JsonPathException(path, $"Expected a non-negative array index or a quoted property name at index {start}.");
         }
 
         segments.Add(Segment.Index(index));
