@@ -112,8 +112,9 @@ internal sealed class UmbracoJsonSchemaGenerator
         {
             JsonObject jsonObject => jsonObject,
 
-            // Boolean schemas (true accepts any value, false none) are converted to objects, so keywords can be added
-            _ when schema.GetValueKind() is JsonValueKind.False => new JsonObject { ["not"] = true },
+            // Boolean schemas (true accepts any value, false none) aren't supported by draft-04, so convert them to their
+            // equivalent objects (which also allows adding keywords)
+            _ when schema.GetValueKind() is JsonValueKind.False => new JsonObject { ["not"] = new JsonObject() },
             _ => new JsonObject(),
         };
 
@@ -136,8 +137,7 @@ internal sealed class UmbracoJsonSchemaGenerator
                 JsonObject schemaObject = ToJsonObject(schema);
                 TransformSchemaNode(context, schemaObject, xmlDocumentation, options);
 
-                // Only replace boolean schemas when keywords were added
-                return schemaObject.Count > 0 || schema is JsonObject ? schemaObject : schema;
+                return schemaObject;
             },
         };
 

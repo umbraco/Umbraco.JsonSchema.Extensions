@@ -324,6 +324,22 @@ public class JsonSchemaGenerateTests
     }
 
     /// <summary>
+    /// The generated schema doesn't contain boolean schemas (e.g. <c>true</c> for any value), as draft-04 doesn't support them.
+    /// </summary>
+    [Test]
+    public void Execute_ConvertsBooleanSchemasToObjects()
+    {
+        var outputPath = TempFile("schema.json");
+        var sut = CreateTask(outputPath);
+
+        sut.Execute();
+
+        var properties = ParseSchema(outputPath)["properties"]!;
+        Assert.That(properties["Anything"], Is.InstanceOf<JsonObject>());
+        Assert.That(properties["Anything"]!.AsObject(), Is.Empty);
+    }
+
+    /// <summary>
     /// The generated schema includes XML doc descriptions.
     /// </summary>
     [Test]
@@ -541,6 +557,8 @@ public class JsonSchemaGenerateTests
         /// </summary>
         [JsonIgnore]
         public string IgnoredValue { get; set; } = string.Empty;
+
+        public object? Anything { get; set; }
 
         [System.ComponentModel.Description("A property described by an attribute.")]
         public string? AttributeDescribed { get; set; }
