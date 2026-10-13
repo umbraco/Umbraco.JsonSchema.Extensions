@@ -6,7 +6,6 @@
   <ItemGroup>
     <PackageReference Include="Microsoft.Build.Utilities.Core" />
     <PackageReference Include="Microsoft.Testing.Extensions.TrxReport" />
-    <PackageReference Include="NJsonSchema" />
     <PackageReference Include="NUnit" />
     <PackageReference Include="NUnit3TestAdapter" />
   </ItemGroup>

@@ -214,6 +214,62 @@ public class JsonFileEditorTests
         Assert.That(path, Does.Not.Exist);
     }
 
+    /// <summary>
+    /// Writing a document replaces the file, even when its content is unchanged.
+    /// </summary>
+    [Test]
+    public void Write_UnchangedContent_StillWritesFile()
+    {
+        var path = WriteJsonFile("""{"foo":"bar"}""");
+        var lastWriteTime = new DateTime(2000, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+        File.SetLastWriteTimeUtc(path, lastWriteTime);
+
+        JsonFileEditor.Write(path, new JsonObject { ["foo"] = "bar" });
+
+        Assert.That(File.GetLastWriteTimeUtc(path), Is.GreaterThan(lastWriteTime));
+        Assert.That(ReadJsonFile(path)["foo"]!.GetValue<string>(), Is.EqualTo("bar"));
+    }
+
+    /// <summary>
+    /// Writing a document creates the file and its directory when they don't exist.
+    /// </summary>
+    [Test]
+    public void Write_MissingFile_CreatesFileAndDirectory()
+    {
+        var path = Path.Combine(_tempDir, "nested", "dir", "new.json");
+
+        JsonFileEditor.Write(path, new JsonObject { ["foo"] = "bar" });
+
+        Assert.That(ReadJsonFile(path)["foo"]!.GetValue<string>(), Is.EqualTo("bar"));
+    }
+
+    /// <summary>
+    /// Writing a document uses the same formatting as updating a file.
+    /// </summary>
+    [Test]
+    public void Write_UsesSameFormattingAsUpdate()
+    {
+        var writtenPath = Path.Combine(_tempDir, "written.json");
+        var updatedPath = Path.Combine(_tempDir, "updated.json");
+
+        JsonFileEditor.Write(writtenPath, new JsonObject { ["foo"] = "Æblegrød & <'+'>", ["items"] = new JsonArray(1, 2) });
+        JsonFileEditor.Update(updatedPath, json => json["items"] = new JsonArray(1, 2), new JsonObject { ["foo"] = "Æblegrød & <'+'>" });
+
+        Assert.That(File.ReadAllText(writtenPath), Is.EqualTo(File.ReadAllText(updatedPath)));
+    }
+
+    /// <summary>
+    /// When writing a document fails, the partially written file is removed.
+    /// </summary>
+    [Test]
+    public void Write_Fails_RemovesPartiallyWrittenFile()
+    {
+        var path = WriteJsonFile("""{"foo":"bar"}""");
+
+        Assert.Throws<InvalidOperationException>(() => JsonFileEditor.Write(path, new JsonObject { ["foo"] = JsonValue.Create(new ThrowingValue()) }));
+        Assert.That(path, Does.Not.Exist);
+    }
+
     private string WriteJsonFile(string json, string name = "test.json")
     {
         var path = Path.Combine(_tempDir, name);
@@ -224,4 +280,9 @@ public class JsonFileEditorTests
 
     private static JsonNode ReadJsonFile(string path)
         => JsonNode.Parse(File.ReadAllText(path))!;
+
+    private sealed class ThrowingValue
+    {
+        public string Value => throw new InvalidOperationException();
+    }
 }

@@ -1,9 +1,10 @@
 using System;
-using System.Collections;
+using System.ComponentModel;
 using System.IO;
 using System.Linq;
 using System.Text.Json.Nodes;
-using Microsoft.Build.Framework;
+using System.Text.Json.Serialization;
+using System.Text.RegularExpressions;
 using NUnit.Framework;
 
 namespace Umbraco.JsonSchema.Extensions.UnitTests;
@@ -151,7 +152,7 @@ public class JsonSchemaGenerateTests
         sut.Execute();
 
         var schema = ParseSchema(outputPath);
-        var enumSchema = schema["definitions"]!["TestStatus"]!;
+        var enumSchema = schema["properties"]!["Status"]!;
         var enumValues = enumSchema["enum"]!.AsArray();
 
         var values = enumValues.Select(v => v?.GetValue<string>()).ToList();
@@ -161,7 +162,32 @@ public class JsonSchemaGenerateTests
     }
 
     /// <summary>
-    /// The generated schema includes nested type definitions.
+    /// The generated schema includes the names of flags enums, while allowing comma-separated combinations.
+    /// </summary>
+    [Test]
+    public void Execute_FlagsEnumAllowsCombinations()
+    {
+        var outputPath = TempFile("schema.json");
+        var sut = CreateTask(outputPath);
+
+        sut.Execute();
+
+        var flagsSchema = ParseSchema(outputPath)["properties"]!["Flags"]!;
+        Assert.That(flagsSchema["type"]?.GetValue<string>(), Is.EqualTo("string"));
+
+        var anyOf = flagsSchema["anyOf"]!.AsArray();
+        var values = anyOf[0]!["enum"]!.AsArray().Select(v => v?.GetValue<string>()).ToList();
+        Assert.That(values, Is.EqualTo(new[] { "None", "Read", "Write", "All" }));
+
+        var pattern = new Regex(anyOf[1]!["pattern"]!.GetValue<string>());
+        Assert.That(pattern.IsMatch("Read"), Is.True);
+        Assert.That(pattern.IsMatch("Read, Write"), Is.True);
+        Assert.That(pattern.IsMatch("Read,Write"), Is.True);
+        Assert.That(pattern.IsMatch("Read, Unknown"), Is.False);
+    }
+
+    /// <summary>
+    /// The generated schema includes nested types inline.
     /// </summary>
     [Test]
     public void Execute_NestedTypeGeneratesProperSchema()
@@ -174,9 +200,146 @@ public class JsonSchemaGenerateTests
         var schema = ParseSchema(outputPath);
         Assert.That(schema["properties"]!["Address"], Is.Not.Null);
 
-        var addressSchema = schema["definitions"]!["TestAddress"]!;
+        var addressSchema = schema["properties"]!["Address"]!;
         Assert.That(addressSchema["properties"]!["Street"], Is.Not.Null);
         Assert.That(addressSchema["properties"]!["City"], Is.Not.Null);
+    }
+
+    /// <summary>
+    /// The generated schema references recursive types instead of expanding them indefinitely.
+    /// </summary>
+    [Test]
+    public void Execute_RecursiveTypeUsesReference()
+    {
+        var outputPath = TempFile("schema.json");
+        var sut = CreateTask(outputPath);
+
+        var result = sut.Execute();
+
+        Assert.That(result, Is.True);
+
+        var treeSchema = ParseSchema(outputPath)["properties"]!["Tree"]!;
+        Assert.That(treeSchema["properties"]!["Name"], Is.Not.Null);
+        Assert.That(treeSchema["properties"]!["Child"]!["properties"]!["Child"]!["$ref"]?.GetValue<string>(), Is.EqualTo("#/properties/Tree/properties/Child"));
+    }
+
+    /// <summary>
+    /// The generated schema uses the property names and ignores from System.Text.Json attributes.
+    /// </summary>
+    [Test]
+    public void Execute_UsesJsonAttributes()
+    {
+        var outputPath = TempFile("schema.json");
+        var sut = CreateTask(outputPath);
+
+        sut.Execute();
+
+        var properties = ParseSchema(outputPath)["properties"]!.AsObject();
+        Assert.That(properties.ContainsKey("renamed"), Is.True);
+        Assert.That(properties.ContainsKey("RenamedValue"), Is.False);
+        Assert.That(properties.ContainsKey("IgnoredValue"), Is.False);
+    }
+
+    /// <summary>
+    /// The generated schema includes the value of <see cref="DefaultValueAttribute" /> as default.
+    /// </summary>
+    [Test]
+    public void Execute_IncludesDefaultValues()
+    {
+        var outputPath = TempFile("schema.json");
+        var sut = CreateTask(outputPath);
+
+        sut.Execute();
+
+        var properties = ParseSchema(outputPath)["properties"]!;
+        Assert.That(properties["Age"]!["default"]?.GetValue<int>(), Is.EqualTo(18));
+        Assert.That(properties["Status"]!["default"]?.GetValue<string>(), Is.EqualTo("Pending"));
+        Assert.That(properties["Timeout"]!["default"]?.GetValue<string>(), Is.EqualTo("00:20:00"));
+    }
+
+    /// <summary>
+    /// The generated schema leaves out a default value that couldn't be converted to the (non-nullable) property type.
+    /// </summary>
+    [Test]
+    public void Execute_ExcludesUnconvertibleDefaultValues()
+    {
+        var outputPath = TempFile("schema.json");
+        var sut = CreateTask(outputPath);
+
+        sut.Execute();
+
+        var properties = ParseSchema(outputPath)["properties"]!;
+        Assert.That(properties["UnconvertibleDefault"]!.AsObject().ContainsKey("default"), Is.False);
+    }
+
+    /// <summary>
+    /// The generated schema doesn't restrict time spans to the constant format, as configuration binding parses other formats as well.
+    /// </summary>
+    [Test]
+    public void Execute_TimeSpanAllowsAnyString()
+    {
+        var outputPath = TempFile("schema.json");
+        var sut = CreateTask(outputPath);
+
+        sut.Execute();
+
+        var timeoutSchema = ParseSchema(outputPath)["properties"]!["Timeout"]!.AsObject();
+        Assert.That(timeoutSchema["type"]?.GetValue<string>(), Is.EqualTo("string"));
+        Assert.That(timeoutSchema.ContainsKey("pattern"), Is.False);
+    }
+
+    /// <summary>
+    /// The generated schema applies the time span and flags enum adjustments to nullable properties as well.
+    /// </summary>
+    [Test]
+    public void Execute_NullablePropertiesUseUnderlyingTypeAdjustments()
+    {
+        var outputPath = TempFile("schema.json");
+        var sut = CreateTask(outputPath);
+
+        sut.Execute();
+
+        var properties = ParseSchema(outputPath)["properties"]!;
+        var timeoutSchema = properties["NullableTimeout"]!.AsObject();
+        Assert.That(timeoutSchema["type"]!.ToJsonString(), Does.Contain("null"));
+        Assert.That(timeoutSchema.ContainsKey("pattern"), Is.False);
+
+        var flagsSchema = properties["NullableFlags"]!.AsObject();
+        Assert.That(flagsSchema["type"]!.ToJsonString(), Does.Contain("null"));
+        var pattern = new Regex(flagsSchema["anyOf"]![1]!["pattern"]!.GetValue<string>());
+        Assert.That(pattern.IsMatch("Read, Write"), Is.True);
+    }
+
+    /// <summary>
+    /// The generated schema marks obsolete properties as deprecated when included.
+    /// </summary>
+    [Test]
+    public void Execute_MarksObsoletePropertiesAsDeprecated_WhenEnabled()
+    {
+        var outputPath = TempFile("schema.json");
+        var sut = CreateTask(outputPath);
+        sut.IncludeObsoleteProperties = true;
+
+        sut.Execute();
+
+        var obsoleteSchema = ParseSchema(outputPath)["properties"]!["ObsoleteValue"]!;
+        Assert.That(obsoleteSchema["x-deprecated"]?.GetValue<bool>(), Is.True);
+        Assert.That(obsoleteSchema["x-deprecatedMessage"]?.GetValue<string>(), Is.EqualTo("This property is obsolete."));
+    }
+
+    /// <summary>
+    /// The generated schema declares the JSON schema draft.
+    /// </summary>
+    [Test]
+    public void Execute_IncludesSchemaDraft()
+    {
+        var outputPath = TempFile("schema.json");
+        var sut = CreateTask(outputPath);
+
+        sut.Execute();
+
+        var schema = ParseSchema(outputPath);
+        Assert.That(schema["$schema"]?.GetValue<string>(), Is.EqualTo("http://json-schema.org/draft-04/schema#"));
     }
 
     /// <summary>
@@ -195,6 +358,22 @@ public class JsonSchemaGenerateTests
             schema.AsObject().ContainsKey("additionalProperties"),
             Is.False,
             "Schema should not explicitly restrict additional properties");
+    }
+
+    /// <summary>
+    /// The generated schema doesn't contain boolean schemas (e.g. <c>true</c> for any value), as draft-04 doesn't support them.
+    /// </summary>
+    [Test]
+    public void Execute_ConvertsBooleanSchemasToObjects()
+    {
+        var outputPath = TempFile("schema.json");
+        var sut = CreateTask(outputPath);
+
+        sut.Execute();
+
+        var properties = ParseSchema(outputPath)["properties"]!;
+        Assert.That(properties["Anything"], Is.InstanceOf<JsonObject>());
+        Assert.That(properties["Anything"]!.AsObject(), Is.Empty);
     }
 
     /// <summary>
@@ -227,6 +406,41 @@ public class JsonSchemaGenerateTests
         Assert.That(properties["Name"]!["description"]?.GetValue<string>(), Is.Not.Null.And.Not.Empty);
         Assert.That(properties["Age"]!["description"]?.GetValue<string>(), Is.Not.Null.And.Not.Empty);
         Assert.That(properties["Status"]!["description"]?.GetValue<string>(), Is.Not.Null.And.Not.Empty);
+    }
+
+    /// <summary>
+    /// The generated schema falls back to the <see cref="System.ComponentModel.DescriptionAttribute" /> when a property has no XML documentation.
+    /// </summary>
+    [Test]
+    public void Execute_FallsBackToDescriptionAttribute()
+    {
+        var outputPath = TempFile("schema.json");
+        var sut = CreateTask(outputPath);
+
+        sut.Execute();
+
+        var properties = ParseSchema(outputPath)["properties"]!;
+        Assert.That(properties["AttributeDescribed"]!["description"]?.GetValue<string>(), Is.EqualTo("A property described by an attribute."));
+        Assert.That(properties["BothDescribed"]!["description"]?.GetValue<string>(), Is.EqualTo("A property described by both XML documentation and an attribute."));
+    }
+
+    /// <summary>
+    /// The generated schema includes descriptions from the XML documentation of dependency assemblies (loaded from the
+    /// directory of the assembly).
+    /// </summary>
+    [Test]
+    public void Execute_IncludesDescriptionsFromDependencyAssemblies()
+    {
+        var outputPath = TempFile("schema.json");
+        var sut = CreateTask(outputPath);
+        sut.TypeName = typeof(DependencyModel).FullName!;
+
+        Assert.That(sut.Execute(), Is.True);
+
+        var properties = ParseSchema(outputPath)["properties"]!;
+        Assert.That(
+            properties["Dependency"]!["description"]?.GetValue<string>(),
+            Is.EqualTo("Updates the value of a property in a JSON file using a JSON path expression."));
     }
 
     /// <summary>
@@ -277,6 +491,18 @@ public class JsonSchemaGenerateTests
     private string TempFile(string name) => Path.Combine(_tempDir, name);
 
     /// <summary>
+    /// Test flags enum for schema generation.
+    /// </summary>
+    [Flags]
+    private enum TestFlags
+    {
+        None = 0,
+        Read = 1,
+        Write = 2,
+        All = Read | Write,
+    }
+
+    /// <summary>
     /// Test enum for schema generation.
     /// </summary>
     private enum TestStatus
@@ -297,9 +523,43 @@ public class JsonSchemaGenerateTests
     }
 
     /// <summary>
+    /// A recursive type for testing recursive schema generation.
+    /// </summary>
+    private sealed class TestNode
+    {
+        public string Name { get; set; } = string.Empty;
+
+        public TestNode? Child { get; set; }
+    }
+
+    /// <summary>
+    /// A base class for testing inherited properties.
+    /// </summary>
+    private abstract class TestModelBase
+    {
+        /// <summary>
+        /// A property declared on the base class.
+        /// </summary>
+        public string BaseValue { get; set; } = string.Empty;
+
+        /// <summary>
+        /// A virtual property documented on the base class.
+        /// </summary>
+        public virtual string VirtualValue { get; set; } = string.Empty;
+    }
+
+    /// <summary>
+    /// A model with a property of a type declared in a dependency assembly.
+    /// </summary>
+    private sealed class DependencyModel
+    {
+        public JsonPathUpdateValue? Dependency { get; set; }
+    }
+
+    /// <summary>
     /// Primary test model exercising all schema generation scenarios.
     /// </summary>
-    private sealed class TestModel
+    private sealed class TestModel : TestModelBase
     {
         /// <summary>
         /// A writable string property (should appear in schema).
@@ -309,7 +569,8 @@ public class JsonSchemaGenerateTests
         /// <summary>
         /// A writable int property (should appear in schema).
         /// </summary>
-        public int Age { get; set; }
+        [DefaultValue(18)]
+        public int Age { get; set; } = 18;
 
         /// <summary>
         /// A read-only property (should be excluded from schema).
@@ -335,32 +596,61 @@ public class JsonSchemaGenerateTests
         /// <summary>
         /// An enum property (should use string values via JsonStringEnumConverter).
         /// </summary>
-        public TestStatus Status { get; set; }
+        [DefaultValue(TestStatus.Pending)]
+        public TestStatus Status { get; set; } = TestStatus.Pending;
+
+        /// <summary>
+        /// A flags enum property (should allow comma-separated combinations).
+        /// </summary>
+        public TestFlags Flags { get; set; }
+
+        /// <summary>
+        /// A time span property (should allow any string).
+        /// </summary>
+        [DefaultValue(typeof(TimeSpan), "00:20:00")]
+        public TimeSpan Timeout { get; set; } = TimeSpan.FromMinutes(20);
+
+        /// <summary>
+        /// A renamed property (should use the name from JsonPropertyName).
+        /// </summary>
+        [JsonPropertyName("renamed")]
+        public string RenamedValue { get; set; } = string.Empty;
+
+        /// <summary>
+        /// An ignored property (should be excluded from schema).
+        /// </summary>
+        [JsonIgnore]
+        public string IgnoredValue { get; set; } = string.Empty;
+
+        public object? Anything { get; set; }
+
+        public TimeSpan? NullableTimeout { get; set; }
+
+        public TestFlags? NullableFlags { get; set; }
+
+        [DefaultValue(typeof(int), "not-a-number")]
+        public int UnconvertibleDefault { get; set; }
+
+        [System.ComponentModel.Description("A property described by an attribute.")]
+        public string? AttributeDescribed { get; set; }
+
+        /// <summary>
+        /// A property described by both XML documentation and an attribute.
+        /// </summary>
+        [System.ComponentModel.Description("The attribute description.")]
+        public string? BothDescribed { get; set; }
+
+        /// <inheritdoc />
+        public override string VirtualValue { get; set; } = string.Empty;
+
+        /// <summary>
+        /// A recursive object property (should reference itself instead of expanding indefinitely).
+        /// </summary>
+        public TestNode? Tree { get; set; }
 
         /// <summary>
         /// A nested object property (should generate proper nested schema).
         /// </summary>
         public TestAddress? Address { get; set; }
-    }
-
-    private sealed class FakeBuildEngine : IBuildEngine
-    {
-        public bool ContinueOnError => false;
-
-        public int LineNumberOfTaskNode => 0;
-
-        public int ColumnNumberOfTaskNode => 0;
-
-        public string ProjectFileOfTaskNode => string.Empty;
-
-        public bool BuildProjectFile(string projectFileName, string[] targetNames, IDictionary globalProperties, IDictionary targetOutputs) => true;
-
-        public void LogCustomEvent(CustomBuildEventArgs e) { }
-
-        public void LogErrorEvent(BuildErrorEventArgs e) { }
-
-        public void LogMessageEvent(BuildMessageEventArgs e) { }
-
-        public void LogWarningEvent(BuildWarningEventArgs e) { }
     }
 }

@@ -7,7 +7,7 @@ using System.Text.Json.Nodes;
 namespace Umbraco.JsonSchema.Extensions;
 
 /// <summary>
-/// Applies changes to JSON files, only writing a file when its content changes.
+/// Applies changes to and writes JSON files, using the same parsing and formatting for every file.
 /// </summary>
 internal static class JsonFileEditor
 {
@@ -51,14 +51,8 @@ internal static class JsonFileEditor
 
             change(startingDocument);
 
-            var directory = Path.GetDirectoryName(Path.GetFullPath(filePath));
-            if (directory is not null)
-            {
-                Directory.CreateDirectory(directory);
-            }
-
             using FileStream newFile = Open(filePath, FileMode.CreateNew);
-            Write(newFile, startingDocument);
+            WriteTo(newFile, startingDocument);
 
             return true;
         }
@@ -98,24 +92,79 @@ internal static class JsonFileEditor
         // Truncate and (re)write the file
         fs.SetLength(0);
         fs.Position = 0;
-        Write(fs, root);
+        WriteTo(fs, root);
 
         return true;
+    }
+
+    /// <summary>
+    /// Writes <paramref name="document" /> to the JSON file, replacing its content (even when it's unchanged).
+    /// </summary>
+    /// <param name="filePath">The path to the JSON file.</param>
+    /// <param name="document">The JSON document to write.</param>
+    /// <remarks>
+    /// The parent directory is created when it doesn't exist and the file is exclusively locked while writing. When
+    /// writing fails, the partially written file is removed.
+    /// </remarks>
+    /// <exception cref="JsonFileException">The file can't be created or written.</exception>
+    public static void Write(string filePath, JsonNode document)
+    {
+        FileStream fs = Open(filePath, FileMode.Create);
+        try
+        {
+            using (fs)
+            {
+                WriteTo(fs, document);
+            }
+        }
+        catch (Exception ex)
+        {
+            // Remove the partially written file, so it can't be mistaken for complete output (e.g. by incremental builds)
+            TryDelete(filePath);
+
+            if (ex is IOException or UnauthorizedAccessException)
+            {
+                throw new JsonFileException(filePath, $"The file can't be written: {ex.Message}", ex);
+            }
+
+            throw;
+        }
     }
 
     private static FileStream Open(string filePath, FileMode mode)
     {
         try
         {
+            if (mode is not FileMode.Open)
+            {
+                var directory = Path.GetDirectoryName(Path.GetFullPath(filePath));
+                if (directory is not null)
+                {
+                    Directory.CreateDirectory(directory);
+                }
+            }
+
             return File.Open(filePath, mode, FileAccess.ReadWrite, FileShare.None);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
-            throw new JsonFileException(filePath, $"The file can't be opened: {ex.Message}", ex);
+            throw new JsonFileException(filePath, $"The file can't be {(mode is FileMode.Open ? "opened" : "created")}: {ex.Message}", ex);
         }
     }
 
-    private static void Write(FileStream fs, JsonNode root)
+    private static void TryDelete(string filePath)
+    {
+        try
+        {
+            File.Delete(filePath);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            // Ignore, as the exception that caused the removal is more relevant
+        }
+    }
+
+    private static void WriteTo(FileStream fs, JsonNode root)
     {
         using var writer = new Utf8JsonWriter(fs, _writerOptions);
         root.WriteTo(writer);

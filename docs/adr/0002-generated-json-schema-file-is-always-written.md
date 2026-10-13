@@ -1,0 +1,3 @@
+# The generated JSON schema file is always written
+
+`JsonSchemaGenerate` writes its output file every time it runs, unlike `JsonSchemaAddReferences` and `JsonPathUpdateValue`, which only write a file when its content changes. The task is meant to run in a target with `Inputs="$(TargetPath)" Outputs="<schema file>"`, where the output's timestamp is what lets MSBuild skip it: skipping an unchanged write leaves the output older than the assembly, so generation would rerun on every build. Only touching the timestamp instead of writing avoids that, but then saves nothing over writing the identical content.

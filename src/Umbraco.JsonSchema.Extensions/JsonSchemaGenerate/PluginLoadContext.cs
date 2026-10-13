@@ -1,22 +1,20 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Linq;
 using System.Reflection;
 using System.Runtime.Loader;
-using Namotion.Reflection;
 
 namespace Umbraco.JsonSchema.Extensions;
 
 /// <summary>
 /// A collectible <see cref="AssemblyLoadContext" /> that resolves assemblies
 /// from the same directory as a specified plugin assembly without locking the files.
-/// XML documentation caches are automatically primed for each loaded assembly.
+/// The file paths of the loaded assemblies are tracked, so their XML documentation files can be found.
 /// </summary>
 internal sealed class PluginLoadContext : AssemblyLoadContext, IDisposable
 {
     private readonly AssemblyDependencyResolver _resolver;
-    private readonly List<(Assembly Assembly, string Path)> _pendingXmlDocsPriming = [];
+    private readonly Dictionary<Assembly, string> _assemblyPaths = [];
 
     /// <summary>
     /// Initializes a new instance of the <see cref="PluginLoadContext" /> class.
@@ -35,29 +33,17 @@ internal sealed class PluginLoadContext : AssemblyLoadContext, IDisposable
     {
         using var stream = File.OpenRead(assemblyPath);
         Assembly assembly = LoadFromStream(stream);
-        _pendingXmlDocsPriming.Add((assembly, assemblyPath));
+        _assemblyPaths[assembly] = assemblyPath;
         return assembly;
     }
 
     /// <summary>
-    /// Pre-populates the Namotion.Reflection XML docs cache for all assemblies loaded so far.
-    /// Must be called after all assemblies have been loaded to avoid re-entrant assembly loading
-    /// during the <see cref="Load" /> callback.
+    /// Gets the file path of an assembly, which is not available from <see cref="Assembly.Location" /> for assemblies loaded from a stream.
     /// </summary>
-    public void PrimeXmlDocsCache()
-    {
-        // Process pending assemblies, including any new ones added during priming
-        while (_pendingXmlDocsPriming.Count > 0)
-        {
-            var pending = _pendingXmlDocsPriming.ToList();
-            _pendingXmlDocsPriming.Clear();
-
-            foreach ((Assembly assembly, string assemblyPath) in pending)
-            {
-                PrimeXmlDocsCache(assembly, assemblyPath);
-            }
-        }
-    }
+    /// <param name="assembly">The assembly.</param>
+    /// <returns>The file path of the assembly, or <c>null</c> when unknown.</returns>
+    public string? GetAssemblyPath(Assembly assembly)
+        => _assemblyPaths.TryGetValue(assembly, out string? assemblyPath) ? assemblyPath : (string.IsNullOrEmpty(assembly.Location) ? null : assembly.Location);
 
     /// <inheritdoc />
     public void Dispose() => Unload();
@@ -65,13 +51,16 @@ internal sealed class PluginLoadContext : AssemblyLoadContext, IDisposable
     /// <inheritdoc />
     protected override Assembly? Load(AssemblyName assemblyName)
     {
+        // Always share System.Text.Json with the task, as the schema exporter matches its attributes (e.g. JsonPropertyName) by type
+        if (assemblyName.Name == "System.Text.Json")
+        {
+            return null;
+        }
+
         string? assemblyPath = _resolver.ResolveAssemblyToPath(assemblyName);
         if (assemblyPath != null)
         {
-            using var stream = File.OpenRead(assemblyPath);
-            Assembly assembly = LoadFromStream(stream);
-            _pendingXmlDocsPriming.Add((assembly, assemblyPath));
-            return assembly;
+            return LoadFromAssemblyFile(assemblyPath);
         }
 
         return null;
@@ -87,28 +76,5 @@ internal sealed class PluginLoadContext : AssemblyLoadContext, IDisposable
         }
 
         return nint.Zero;
-    }
-
-    private static void PrimeXmlDocsCache(Assembly assembly, string assemblyPath)
-    {
-        string xmlDocsPath = Path.ChangeExtension(assemblyPath, ".xml");
-        if (!File.Exists(xmlDocsPath))
-        {
-            return;
-        }
-
-        // GetXmlDocsElement with an explicit path populates an internal cache keyed by assembly name.
-        // Any type from the assembly is sufficient — subsequent lookups for all types in this assembly
-        // will find the cached document.
-        try
-        {
-            assembly.DefinedTypes.FirstOrDefault()?.GetXmlDocsElement(xmlDocsPath);
-        }
-        catch (ReflectionTypeLoadException ex)
-        {
-            // Some types may fail to load due to missing dependencies.
-            // Use the first successfully loaded type to prime the cache.
-            ex.Types.FirstOrDefault(t => t is not null)?.GetXmlDocsElement(xmlDocsPath);
-        }
     }
 }

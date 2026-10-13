@@ -84,7 +84,7 @@ public class JsonSchemaAddReferences : Microsoft.Build.Utilities.Task
         JsonObject references = CreateReferences(References, Combinator);
         var newSchema = new JsonObject
         {
-            ["$schema"] = "http://json-schema.org/draft-04/schema#"
+            ["$schema"] = JsonSchemaDraft.Uri
         };
 
         try
