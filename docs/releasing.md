@@ -44,7 +44,7 @@ The prepare workflows leave a draft GitHub Release on the **Releases** page, tar
 
 Don't change the tag: `publicReleaseRefSpec` only matches the `release-` prefix, so a typo still builds and publishes.
 
-Building and publishing is Azure Pipelines (`azure-pipelines.yml`), not GitHub Actions. For a public release, its `ReleaseMyGet` stage pushes the package to the MyGet pre-release feed and its `Release` stage pushes it to nuget.org.
+Building and publishing is Azure Pipelines (`azure-pipelines.yml`), not GitHub Actions. For a public release, its `Prerelease` stage pushes the package to the MyGet pre-release feed and its `Release` stage pushes it to nuget.org.
 
 ## After publishing
 
