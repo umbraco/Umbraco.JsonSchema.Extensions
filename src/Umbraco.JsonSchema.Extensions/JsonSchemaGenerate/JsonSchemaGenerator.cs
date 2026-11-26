@@ -25,8 +25,9 @@ internal static class JsonSchemaGenerator
     /// <param name="type">The type to generate the schema for.</param>
     /// <param name="getSummary">Gets the summary of a type, property or field (e.g. from the XML documentation), used as description (falling back to <see cref="DescriptionAttribute" />).</param>
     /// <param name="includeObsoleteProperties">Whether to include properties marked with <see cref="ObsoleteAttribute" /> (marked as deprecated).</param>
+    /// <param name="markRequiredProperties">Whether to mark properties with <see cref="RequiredAttribute" /> as required (otherwise no property is required).</param>
     /// <returns>The generated JSON schema.</returns>
-    public static JsonObject Generate(Type type, Func<MemberInfo, string?> getSummary, bool includeObsoleteProperties)
+    public static JsonObject Generate(Type type, Func<MemberInfo, string?> getSummary, bool includeObsoleteProperties, bool markRequiredProperties)
     {
         var options = new JsonSerializerOptions()
         {
@@ -37,7 +38,7 @@ internal static class JsonSchemaGenerator
                 Modifiers =
                 {
                     typeInfo => RemoveIgnoredProperties(typeInfo, includeObsoleteProperties),
-                    SetRequiredProperties,
+                    typeInfo => SetRequiredProperties(typeInfo, markRequiredProperties),
                 },
             },
         };
@@ -160,18 +161,20 @@ internal static class JsonSchemaGenerator
         }
     }
 
-    private static void SetRequiredProperties(JsonTypeInfo typeInfo)
+    private static void SetRequiredProperties(JsonTypeInfo typeInfo, bool markRequiredProperties)
     {
         if (typeInfo.Kind != JsonTypeInfoKind.Object)
         {
             return;
         }
 
-        // Only mark properties with [Required] as required, as the required modifier (and [JsonRequired]) only enforces
-        // the property is set when constructing or deserializing the object, which configuration binding doesn't do
+        // Configuration is layered (multiple appsettings files, environment variables, etc.), so a single file can't be
+        // expected to contain every required setting: only mark properties with [Required] as required when enabled, as
+        // the required modifier (and [JsonRequired]) only enforces the property is set when constructing or deserializing
+        // the object, which configuration binding doesn't do
         foreach (JsonPropertyInfo property in typeInfo.Properties)
         {
-            property.IsRequired = property.AttributeProvider?.IsDefined(typeof(RequiredAttribute), inherit: true) is true;
+            property.IsRequired = markRequiredProperties && property.AttributeProvider?.IsDefined(typeof(RequiredAttribute), inherit: true) is true;
         }
     }
 }
