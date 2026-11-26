@@ -41,10 +41,13 @@ The prepare workflows leave a draft GitHub Release on the **Releases** page, tar
 1. Open the draft and click **Generate release notes**. Do this last, so the notes include everything merged into the release branch while stabilising.
 2. Leave **Set as the latest release** unticked. GitHub then assigns the latest release by semantic version, so a stable release on the newest major becomes the latest, while a prerelease or a patch to an older major never does.
 3. Publish the release. That creates the tag on the tip of the release branch, which triggers the build, which packs and publishes.
+4. Approve the `Release` stage of that build in Azure Pipelines. Nothing reaches nuget.org until someone does.
 
 Don't change the tag: `publicReleaseRefSpec` only matches the `release-` prefix, so a typo still builds and publishes.
 
 Building and publishing is Azure Pipelines (`azure-pipelines.yml`), not GitHub Actions. For a public release, its `Prerelease` stage pushes the package to the MyGet pre-release feed and its `Release` stage pushes it to nuget.org.
+
+The `Release` stage starts once the MyGet push has succeeded, and then waits for a manual approval on the page of the pipeline run. Nobody is notified that it is waiting, and it is rejected automatically after 3 days, which fails the run without publishing to nuget.org.
 
 ## After publishing
 
@@ -57,6 +60,7 @@ A prerelease is a no-op that says so in the log, whether or not the pre-release 
 ## What is still done by hand
 
 - Adding the release notes to the draft GitHub Release and publishing it.
+- Approving the `Release` stage of the Azure Pipelines run, which is what publishes to nuget.org.
 - Deleting the draft GitHub Release of a release branch that is abandoned.
 - Merging between majors, both `release/X.Y.Z` into the next major's release branch and `vX/dev` into `develop`. These are judgement calls about timing and they conflict often, so they are deliberately not automated.
 - Branching `v{N}/dev` from `develop` when development moves to a new major while the previous one is still supported. This happens before that major is released, so there is no release event to hang it on.
