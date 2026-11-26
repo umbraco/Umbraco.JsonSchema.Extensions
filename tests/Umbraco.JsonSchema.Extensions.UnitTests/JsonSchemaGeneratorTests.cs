@@ -179,13 +179,25 @@ public class JsonSchemaGeneratorTests
     }
 
     /// <summary>
-    /// Only properties marked with <see cref="RequiredAttribute" /> are required, not those using the <c>required</c>
-    /// modifier or <see cref="JsonRequiredAttribute" />.
+    /// No properties are required by default, not even those marked with <see cref="RequiredAttribute" />, using the
+    /// <c>required</c> modifier or <see cref="JsonRequiredAttribute" />.
     /// </summary>
     [Test]
-    public void Generate_RequiredProperties_OnlyUseRequiredAttribute()
+    public void Generate_RequiredProperties_AreNotRequiredByDefault()
     {
         JsonObject schema = Generate<RequiredModel>();
+
+        Assert.That(schema.ContainsKey("required"), Is.False);
+    }
+
+    /// <summary>
+    /// Only properties marked with <see cref="RequiredAttribute" /> are required when enabled, not those using the
+    /// <c>required</c> modifier or <see cref="JsonRequiredAttribute" />.
+    /// </summary>
+    [Test]
+    public void Generate_RequiredProperties_OnlyUseRequiredAttribute_WhenEnabled()
+    {
+        JsonObject schema = Generate<RequiredModel>(markRequiredProperties: true);
 
         Assert.That(schema["required"]!.AsArray().Select(x => x?.GetValue<string>()), Is.EqualTo(new[] { "Attribute", "ModifierAndAttribute" }));
     }
@@ -232,8 +244,8 @@ public class JsonSchemaGeneratorTests
         Assert.That(schema["description"]?.GetValue<string>(), Is.EqualTo("DocumentedType summary"));
     }
 
-    private static JsonObject Generate<T>(Func<MemberInfo, string?>? getSummary = null, bool includeObsoleteProperties = false)
-        => JsonSchemaGenerator.Generate(typeof(T), getSummary ?? (_ => null), includeObsoleteProperties);
+    private static JsonObject Generate<T>(Func<MemberInfo, string?>? getSummary = null, bool includeObsoleteProperties = false, bool markRequiredProperties = false)
+        => JsonSchemaGenerator.Generate(typeof(T), getSummary ?? (_ => null), includeObsoleteProperties, markRequiredProperties);
 
     private static string? GetDocumentedSummary(MemberInfo member)
         => member.Name.StartsWith("Documented", StringComparison.Ordinal) ? $"{member.Name} summary" : null;

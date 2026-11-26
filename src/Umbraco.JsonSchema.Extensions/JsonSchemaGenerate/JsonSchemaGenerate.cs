@@ -34,6 +34,11 @@ public sealed class JsonSchemaGenerate : Microsoft.Build.Utilities.Task
     /// </summary>
     public bool IncludeObsoleteProperties { get; set; }
 
+    /// <summary>
+    /// Gets or sets a value indicating whether to mark properties with <see cref="T:System.ComponentModel.DataAnnotations.RequiredAttribute" /> as required.
+    /// </summary>
+    public bool MarkRequiredProperties { get; set; }
+
     /// <inheritdoc />
     public override bool Execute()
     {
@@ -63,7 +68,7 @@ public sealed class JsonSchemaGenerate : Microsoft.Build.Utilities.Task
                 return false;
             }
 
-            schema = JsonSchemaGenerator.Generate(type, assembly.GetSummary, IncludeObsoleteProperties);
+            schema = JsonSchemaGenerator.Generate(type, assembly.GetSummary, IncludeObsoleteProperties, MarkRequiredProperties);
         }
         catch (Exception ex)
         {

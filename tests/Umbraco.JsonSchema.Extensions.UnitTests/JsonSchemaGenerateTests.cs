@@ -1,5 +1,7 @@
 using System;
+using System.ComponentModel.DataAnnotations;
 using System.IO;
+using System.Linq;
 using System.Text.Json.Nodes;
 using NUnit.Framework;
 
@@ -67,6 +69,23 @@ public class JsonSchemaGenerateTests
         Assert.That(sut.Execute(), Is.True);
 
         Assert.That(ParseSchema(outputPath)["properties"]!.AsObject().ContainsKey("ObsoleteValue"), Is.EqualTo(includeObsoleteProperties));
+    }
+
+    /// <summary>
+    /// The task only marks properties with <see cref="RequiredAttribute" /> as required when enabled.
+    /// </summary>
+    /// <param name="markRequiredProperties">Whether to mark properties with <see cref="RequiredAttribute" /> as required.</param>
+    [TestCase(false)]
+    [TestCase(true)]
+    public void Execute_MarkRequiredProperties(bool markRequiredProperties)
+    {
+        var outputPath = TempFile("schema.json");
+        var sut = CreateTask(outputPath);
+        sut.MarkRequiredProperties = markRequiredProperties;
+
+        Assert.That(sut.Execute(), Is.True);
+
+        Assert.That(ParseSchema(outputPath)["required"]?.AsArray().Select(x => x?.GetValue<string>()), markRequiredProperties ? Is.EqualTo(new[] { "RequiredValue" }) : Is.Null);
     }
 
     /// <summary>
@@ -190,6 +209,9 @@ public class JsonSchemaGenerateTests
 
         [Obsolete]
         public string ObsoleteValue { get; set; } = string.Empty;
+
+        [Required]
+        public string RequiredValue { get; set; } = string.Empty;
     }
 
     /// <summary>
