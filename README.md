@@ -103,6 +103,7 @@ The schema is generated using the System.Text.Json [`JsonSchemaExporter`](https:
 - only includes properties with a public setter, and excludes properties marked with `[Obsolete]` (unless `IncludeObsoleteProperties` is set, in which case they're marked with `x-deprecated`);
 - uses the summary from the XML documentation file next to each assembly (including `<inheritdoc />`, where a `cref` is only resolved from the assembly of the member or its base types and interfaces) or else the `[Description]` of the property as `description`, falling back to those of its type (an XML documentation file that can't be read is ignored);
 - uses the value of `[DefaultValue]` as `default`;
+- doesn't mark any property as `required`, as configuration is layered across multiple appsettings files and environment variables, so a single file can't be expected to contain every required setting (unless `MarkRequiredProperties` is set, in which case only properties marked with `[Required]` from `System.ComponentModel.DataAnnotations` are `required`, not those using the `required` modifier or `[JsonRequired]`, as configuration binding doesn't enforce these);
 - allows comma-separated combinations of flags enums and any string for `TimeSpan` values (matching configuration binding).
 
 Nested types are included inline (only recursive types use a `$ref`, pointing to the enclosing schema of the same type), so the schema doesn't contain `definitions`.
@@ -117,6 +118,7 @@ Nested types are included inline (only recursive types use a `$ref`, pointing to
 | `TypeName` | Yes | Fully qualified type name to generate the schema for |
 | `OutputPath` | Yes | Output file path for the generated JSON schema |
 | `IncludeObsoleteProperties` | No | Whether to include properties marked with `[Obsolete]` (default: `false`) |
+| `MarkRequiredProperties` | No | Whether to mark properties with `[Required]` as `required` (default: `false`) |
 
 ```xml
 <!-- Add JSON schema file to package output and remove on clean -->
